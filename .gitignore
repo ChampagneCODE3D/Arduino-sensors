@@ -1,0 +1,26 @@
+# Arduino / Visual Studio artifacts
+*.o
+*.d
+*.elf
+*.hex
+*.bin
+*.map
+*.eep
+*.lst
+*.tmp
+*.log
+
+# Arduino CLI / build output
+.arduino-build/
+build/
+
+# Visual Studio / VS Code / OS files
+.vs/
+.vscode/
+Thumbs.db
+Desktop.ini
+
+# Backup files
+*.bak
+*.old
+*.orig
