@@ -37,7 +37,16 @@ enum ProgramMode {
     MODE_STREETLIGHT         = 3,
     MODE_ENERGY_SAVING_ROOM  = 4,
     MODE_SMART_HOME_LIGHTING = 5,
-    MODE_NIGHT_WARNING       = 6
+    MODE_NIGHT_WARNING       = 6,
+    MODE_TEMPERATURE         = 7
+};
+
+// Temperature unit pair sub-modes for Mode 7
+enum TempUnitPair {
+    TEMP_C_F = 0,  // Celsius / Fahrenheit
+    TEMP_K_C = 1,  // Kelvin  / Celsius
+    TEMP_K_R = 2,  // Kelvin  / Rankine
+    TEMP_R_F = 3   // Rankine / Fahrenheit
 };
 
 
@@ -50,6 +59,7 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_ENERGY_SAVING_ROOM:  return "Energy Save";
 		case MODE_SMART_HOME_LIGHTING: return "Wake-Up Light";
 		case MODE_NIGHT_WARNING:       return "Night Warn";
+		case MODE_TEMPERATURE:         return "Temperature";
 		default:                       return "Idle";
 	}
 }
@@ -74,7 +84,8 @@ inline const char* getModeDescription(ProgramMode mode) {
 		case MODE_ENERGY_SAVING_ROOM:  return "Save energy";
 		case MODE_SMART_HOME_LIGHTING: return "Progressive";
 		case MODE_NIGHT_WARNING:       return "Warning fade";
-		default:                       return "Select 1-6";
+		case MODE_TEMPERATURE:         return "fw/rv=unit pair";
+		default:                       return "Select 1-7";
 	}
 }
 
@@ -86,7 +97,18 @@ inline const char* getModeCornerLabel(ProgramMode mode) {
 	case MODE_ENERGY_SAVING_ROOM:  return "Save";
 	case MODE_SMART_HOME_LIGHTING: return "Wake";
 	case MODE_NIGHT_WARNING:       return "Warn";
+	case MODE_TEMPERATURE:         return "Temp";
 	default:                       return "";
+  }
+}
+
+inline const char* getTempPairLabel(TempUnitPair pair) {
+  switch (pair) {
+	case TEMP_C_F: return "C/F";
+	case TEMP_K_C: return "K/C";
+	case TEMP_K_R: return "K/R";
+	case TEMP_R_F: return "R/F";
+	default:       return "C/F";
   }
 }
 

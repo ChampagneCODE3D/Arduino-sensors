@@ -78,6 +78,16 @@ unsigned long hallwayFadeStartTime = 0;
 unsigned long hallwayLastMotionTime = 0;
 unsigned long energySaveLastMotionTime = 0;
 unsigned long roomLightLastMotionTime = 0;
+
+// -------------------------
+// TEMPERATURE MODE STATE
+// (Mode 7 - LM35 on A1)
+// -------------------------
+const int tempPin = A1;
+TempUnitPair tempUnitPair = TEMP_C_F;
+int smoothedTempC_x10 = 0;       // tenths of °C, smoothed
+int lastDisplayedTempC = -999;   // sentinel: force first draw
+TempUnitPair lastDisplayedPair = (TempUnitPair)(-1);
 enum WakeUpState { WAKE_OFF, WAKE_RISING, WAKE_ON, WAKE_COUNTDOWN, WAKE_FALLING, WAKE_BOUNCING };
 WakeUpState wakeUpState = WAKE_OFF;
 unsigned long wakeUpStartTime = 0;
@@ -147,8 +157,84 @@ bool roomDark(int lightValue) {
   return lightValue < 500;
 }
 
+// -------------------------
+// TEMPERATURE HELPERS
+// -------------------------
+
+// LM35: Vout = 10 mV/°C. With 5 V ref and 10-bit ADC:
+//   temp (°C × 10) = raw × 500 / 1023
+int readTempC_x10() {
+  return (int)((long)analogRead(tempPin) * 500L / 1023L);
+}
+
+// Map 0–50 °C linearly to 0–9 LEDs (green → yellow → red by hardware position)
+void updateTempLedBar(int tempC_x10) {
+  int count = (int)map((long)tempC_x10, 0L, 500L, 0L, 9L);
+  count = constrain(count, 0, 9);
+  setLedCount(count);
+}
+
+void showTempOnLcd() {
+  lcd.backlight();
+
+  // Only redraw when the integer °C value or unit pair changes
+  if (lastDisplayedTempC != -999 &&
+      smoothedTempC_x10 / 10 == lastDisplayedTempC / 10 &&
+      tempUnitPair == lastDisplayedPair) {
+    return;
+  }
+  lastDisplayedTempC = smoothedTempC_x10;
+  lastDisplayedPair  = tempUnitPair;
+
+  // All conversions kept as integer tenths-of-degree to avoid floats
+  int32_t tC = smoothedTempC_x10;
+  int32_t tF = tC * 9L / 5L + 320L;          // °F × 10
+  int32_t tK = tC + 2731L;                    // K  × 10  (273.1 × 10)
+  int32_t tR = tK * 9L / 5L;                  // °R × 10
+
+  int v1, d1, v2, d2;
+  char u1, u2;
+  switch (tempUnitPair) {
+    case TEMP_C_F:
+      v1 = (int)(tC / 10); d1 = (int)abs(tC % 10); u1 = 'C';
+      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
+      break;
+    case TEMP_K_C:
+      v1 = (int)(tK / 10); d1 = (int)(tK % 10); u1 = 'K';
+      v2 = (int)(tC / 10); d2 = (int)abs(tC % 10); u2 = 'C';
+      break;
+    case TEMP_K_R:
+      v1 = (int)(tK / 10); d1 = (int)(tK % 10); u1 = 'K';
+      v2 = (int)(tR / 10); d2 = (int)(tR % 10); u2 = 'R';
+      break;
+    case TEMP_R_F:
+      v1 = (int)(tR / 10); d1 = (int)(tR % 10); u1 = 'R';
+      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
+      break;
+    default:
+      v1 = (int)(tC / 10); d1 = (int)abs(tC % 10); u1 = 'C';
+      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
+      break;
+  }
+
+  // Line 1: e.g. "25.3C  77.5F    "
+  lcd.setCursor(0, 0);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 0);
+  lcd.print(v1); lcd.print('.'); lcd.print(d1); lcd.print(u1);
+  lcd.print(F("  "));
+  lcd.print(v2); lcd.print('.'); lcd.print(d2); lcd.print(u2);
+
+  // Line 2: e.g. "Temp  C/F"
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("Temp  "));
+  lcd.print(getTempPairLabel(tempUnitPair));
+}
+
 void showIdleMenu() {
-  int page = (millis() / 2500) % 3;
+  int page = (millis() / 2500) % 4;
   if (page == lastMenuPage) {
 	return;
   }
@@ -175,6 +261,12 @@ void showIdleMenu() {
 	  lcd.setCursor(0, 1);
 	  lcd.print("6 Night Warn");
 	  break;
+	case 3:
+	  lcd.setCursor(0, 0);
+	  lcd.print("7 Temperature");
+	  lcd.setCursor(0, 1);
+	  lcd.print("fw/rv=unit pair");
+	  break;
   }
 }
 
@@ -185,6 +277,11 @@ void showModeOnLcd(int lightValue, int pirState) {
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
+	return;
+  }
+
+  if (currentMode == MODE_TEMPERATURE) {
+	showTempOnLcd();
 	return;
   }
 
@@ -572,6 +669,12 @@ void applyMode(int pirState, int lightValue) {
 	return; // Exit early, don't run switch
   }
 
+  // Mode 7: Temperature display - LED bar maps 0-50 °C to 0-9 LEDs
+  if (currentMode == MODE_TEMPERATURE) {
+    updateTempLedBar(smoothedTempC_x10);
+    return;
+  }
+
   switch (currentMode) {
 	case MODE_IDLE:
 	  allOff();
@@ -657,6 +760,9 @@ void setMode(ProgramMode mode) {
   streetLightDarkStart = 0;
   streetLightBrightStart = 0;
   wakeUpState = WAKE_OFF;
+  tempUnitPair     = TEMP_C_F;
+  lastDisplayedTempC = -999;
+  lastDisplayedPair  = (TempUnitPair)(-1);
 
   // SD logging removed to save RAM
 
@@ -693,7 +799,7 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select 1-6");
+  lcd.print("Select 1-7");
   lcd.setCursor(0, 1);
   lcd.print("Press button");
 
@@ -713,6 +819,7 @@ void loop() {
   int pirState = digitalRead(pirPin);
   int lightValue = analogRead(ldrPin);
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
+  smoothedTempC_x10  = (smoothedTempC_x10  * 2 + readTempC_x10()) / 3;
 
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
@@ -730,18 +837,36 @@ void loop() {
 		  setMode(MODE_IDLE);
 		  Serial.println(F("Mode: Idle"));
 		} else if (cmd == CMD_FORWARD) {
-		  int next = (currentMode == MODE_IDLE) ? MODE_SMART_ROOM_LIGHT
-				   : (((int)currentMode % 6) + 1);
-		  setMode((ProgramMode)next);
-		  Serial.print(F("Mode >> : "));
-		  Serial.println(getModeLabel(currentMode));
+		  if (currentMode == MODE_TEMPERATURE) {
+			// Cycle unit pair forward: C/F → K/C → K/R → R/F → C/F
+			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 1) % 4);
+			lastDisplayedTempC = -999;  // force LCD refresh
+			lastDisplayedPair  = (TempUnitPair)(-1);
+			Serial.print(F("Temp pair >> : "));
+			Serial.println(getTempPairLabel(tempUnitPair));
+		  } else {
+			int next = (currentMode == MODE_IDLE) ? MODE_SMART_ROOM_LIGHT
+					 : (((int)currentMode % 7) + 1);
+			setMode((ProgramMode)next);
+			Serial.print(F("Mode >> : "));
+			Serial.println(getModeLabel(currentMode));
+		  }
 		} else if (cmd == CMD_REVERSE) {
-		  int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
-				   ? MODE_NIGHT_WARNING
-				   : ((int)currentMode - 1);
-		  setMode((ProgramMode)prev);
-		  Serial.print(F("Mode << : "));
-		  Serial.println(getModeLabel(currentMode));
+		  if (currentMode == MODE_TEMPERATURE) {
+			// Cycle unit pair backward: C/F → R/F → K/R → K/C → C/F
+			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 3) % 4);
+			lastDisplayedTempC = -999;  // force LCD refresh
+			lastDisplayedPair  = (TempUnitPair)(-1);
+			Serial.print(F("Temp pair << : "));
+			Serial.println(getTempPairLabel(tempUnitPair));
+		  } else {
+			int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
+					 ? MODE_TEMPERATURE
+					 : ((int)currentMode - 1);
+			setMode((ProgramMode)prev);
+			Serial.print(F("Mode << : "));
+			Serial.println(getModeLabel(currentMode));
+		  }
 		} else if (isMappedCmd(cmd)) {
 		  ProgramMode selectedMode = getModeFromCmd(cmd);
 		  setMode(selectedMode);
