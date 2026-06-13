@@ -24,6 +24,7 @@
     <None Include=".gitignore" />
     <None Include="README.md" />
     <None Include="RawCodeTest\RawCodeTest.ino" />
+    <None Include=".github\copilot-instructions.md" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h">

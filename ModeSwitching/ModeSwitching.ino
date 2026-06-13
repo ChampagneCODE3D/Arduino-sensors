@@ -1,3 +1,33 @@
+/*
+ * Arduino Multi-Mode Lighting Controller
+ * 
+ * Author: Jordan (ChampagneCODE3D)
+ * Education: Diploma in MET (Mechanical Engineering Technology) - SAIT
+ * Background: Experience in:
+ *   - Industrial robotics and automation
+ *   - PLC programming and ladder logic
+ *   - HMI/SCADA interface design
+ *   - Sensor integration and process control
+ * 
+ * Repository: https://github.com/ChampagneCODE3D/Arduino-sensors
+ * 
+ * AI DECLARATION:
+ * This code was developed collaboratively with GitHub Copilot AI assistance.
+ * The AI helped with:
+ * - Debugging PIR/LDR sensor integration
+ * - Refactoring from global occupancy state to per-mode timers
+ * - Implementing early-return pattern for Modes 3-6 (bypassing switch-case static variable issues)
+ * - Designing adaptive lighting algorithms (Mode 4 energy-saving, Mode 6 scanning)
+ * - Creating animation state machines (Mode 5 sunrise/sunset with bounce-back effect)
+ * - Optimizing RAM usage (removing SD logging, stabilizing at 56% usage)
+ * - LCD UI design and countdown logic consistency
+ * 
+ * All design decisions, feature requirements, and testing were directed by the human developer.
+ * The core project concept, sensor selection, and mode behaviors are original human work.
+ * 
+ * Date: June 2026
+ */
+
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.hpp>
@@ -30,10 +60,11 @@ int lastDisplayedPresence = -1;
 int lastMenuPage = -1;
 unsigned long lastIrTime = 0;
 uint8_t lastIrCode = 0xFF;
-enum WarnState { WARN_IDLE, WARN_INTRO, WARN_OUTRO };
+enum WarnState { WARN_IDLE, WARN_INTRO, WARN_OUTRO, WARN_COUNTDOWN };
 WarnState warnState = WARN_IDLE;
 int warnLedIndex = 0;
 unsigned long warnStepTime = 0;
+unsigned long warnLastMotionTime = 0;
 enum StreetState { STREET_OFF, STREET_ON, STREET_COLLAPSING };
 StreetState streetState = STREET_OFF;
 unsigned long streetCollapseStartTime = 0;
@@ -47,9 +78,11 @@ unsigned long hallwayFadeStartTime = 0;
 unsigned long hallwayLastMotionTime = 0;
 unsigned long energySaveLastMotionTime = 0;
 unsigned long roomLightLastMotionTime = 0;
-enum WakeUpState { WAKE_OFF, WAKE_RISING };
+enum WakeUpState { WAKE_OFF, WAKE_RISING, WAKE_ON, WAKE_COUNTDOWN, WAKE_FALLING, WAKE_BOUNCING };
 WakeUpState wakeUpState = WAKE_OFF;
 unsigned long wakeUpStartTime = 0;
+unsigned long wakeUpLastMotionTime = 0;
+int wakeUpBounceFromCount = 0;  // LED count when bounce started
 int lastPirStateMode3 = -1;  // For Mode 3 change detection
 int lastStreetStateMode3 = -1;  // For Mode 3 change detection
 unsigned long streetLightLastMotionTime = 0;  // For Mode 3 UI countdown (always runs)
@@ -174,6 +207,16 @@ void showModeOnLcd(int lightValue, int pirState) {
   int secondsRemaining = 0;
   bool showCountdown = false;
 
+  // Mode 5 special handling: show "Occupied" during sunrise and bounce animations
+  if (currentMode == MODE_SMART_HOME_LIGHTING && (wakeUpState == WAKE_RISING || wakeUpState == WAKE_BOUNCING)) {
+	currentPresence = 1; // Treat as occupied during animations
+  }
+
+  // Mode 6 special handling: show "Occupied" during scanning animation
+  if (currentMode == MODE_NIGHT_WARNING && (warnState == WARN_INTRO || warnState == WARN_OUTRO)) {
+	currentPresence = 1; // Treat as occupied during scanning
+  }
+
   if (!currentPresence) {
 	// PIR is LOW - check if we're in timeout/animation period for each mode
 	if (currentMode == MODE_SMART_ROOM_LIGHT) {
@@ -201,10 +244,22 @@ void showModeOnLcd(int lightValue, int pirState) {
 		secondsRemaining = (15000UL - elapsed) / 1000;
 		showCountdown = true;
 	  }
-	} else if (currentMode == MODE_NIGHT_WARNING && (warnState == WARN_INTRO || warnState == WARN_OUTRO)) {
-	  // Night warning animation is in progress
-	  showCountdown = true;
-	  secondsRemaining = 1; // Just show "1s" during animation
+	} else if (currentMode == MODE_SMART_HOME_LIGHTING) {
+	  // Mode 5: Show countdown during the 20-second occupancy period
+	  unsigned long elapsed = millis() - wakeUpLastMotionTime;
+	  if (elapsed < 20000UL && wakeUpState == WAKE_ON) {
+		secondsRemaining = (20000UL - elapsed) / 1000;
+		showCountdown = true;
+	  }
+	} else if (currentMode == MODE_NIGHT_WARNING) {
+	  // Mode 6: Show countdown during the 10-second vacant period
+	  if (warnState == WARN_COUNTDOWN) {
+		unsigned long elapsed = millis() - warnLastMotionTime;
+		if (elapsed >= 10000UL && elapsed < 20000UL) {
+		  secondsRemaining = (20000UL - elapsed) / 1000;
+		  showCountdown = true;
+		}
+	  }
 	}
   }
 
@@ -333,6 +388,190 @@ void applyMode(int pirState, int lightValue) {
 	return; // Exit early, don't run switch
   }
 
+  // Mode 5: Wake-Up Light - progressive animation
+  if (currentMode == MODE_SMART_HOME_LIGHTING) {
+	static int lastPirMode5 = -1;
+	static int lastLightMode5 = -1;
+	static WakeUpState lastWakeState = WAKE_OFF;
+
+	if (pirState != lastPirMode5 || abs(lightValue - lastLightMode5) > 100 || wakeUpState != lastWakeState) {
+	  Serial.print(F("Mode5: PIR="));
+	  Serial.print(pirState);
+	  Serial.print(F(" Light="));
+	  Serial.print(lightValue);
+	  Serial.print(F(" Dark="));
+	  Serial.print(roomDark(lightValue));
+	  Serial.print(F(" State="));
+	  Serial.println(wakeUpState);
+	  lastPirMode5 = pirState;
+	  lastLightMode5 = lightValue;
+	  lastWakeState = wakeUpState;
+	}
+
+	// Update motion timer
+	if (pirState == HIGH) {
+	  wakeUpLastMotionTime = millis();
+	}
+
+	// State machine
+	if (wakeUpState == WAKE_OFF) {
+	  // Only start if dark and motion detected
+	  if (pirState == HIGH && roomDark(lightValue)) {
+		Serial.println(F("-> Starting sunrise (10s)"));
+		wakeUpState = WAKE_RISING;
+		wakeUpStartTime = millis();
+	  } else {
+		allOff();
+	  }
+	} else if (wakeUpState == WAKE_RISING) {
+	  // Rising animation (10 seconds) - continue regardless of light level
+	  unsigned long elapsed = millis() - wakeUpStartTime;
+	  if (elapsed >= 10000) {
+		Serial.println(F("-> Sunrise complete, fully ON"));
+		wakeUpState = WAKE_ON;
+		allOn();
+	  } else {
+		int ledCount = (int)((elapsed * 9) / 10000);
+		setLedCount(ledCount);
+	  }
+	} else if (wakeUpState == WAKE_ON) {
+	  // Stay fully on while occupied - continue regardless of light level
+	  allOn();
+	  if (millis() - wakeUpLastMotionTime >= 20000) {
+		Serial.println(F("-> Starting sunset (10s)"));
+		wakeUpState = WAKE_FALLING;
+		wakeUpStartTime = millis();
+	  }
+	} else if (wakeUpState == WAKE_FALLING) {
+	  // Falling animation (10 seconds, reverse) - but can be interrupted by motion
+	  if (pirState == HIGH) {
+		// Calculate current LED count during sunset
+		unsigned long elapsed = millis() - wakeUpStartTime;
+		int currentLedCount = 9 - (int)((elapsed * 9) / 10000);
+		wakeUpBounceFromCount = currentLedCount;
+		Serial.print(F("-> Motion during sunset at LED "));
+		Serial.print(currentLedCount);
+		Serial.println(F(", bouncing back!"));
+		wakeUpState = WAKE_BOUNCING;
+		wakeUpStartTime = millis();
+	  } else {
+		unsigned long elapsed = millis() - wakeUpStartTime;
+		if (elapsed >= 10000) {
+		  Serial.println(F("-> Sunset complete, OFF"));
+		  wakeUpState = WAKE_OFF;
+		  allOff();
+		} else {
+		  int ledCount = 9 - (int)((elapsed * 9) / 10000);
+		  setLedCount(ledCount);
+		}
+	  }
+	} else if (wakeUpState == WAKE_BOUNCING) {
+	  // Bounce back from where sunset was interrupted to fully on
+	  int ledsToAdd = 9 - wakeUpBounceFromCount;  // How many LEDs to turn back on
+	  if (ledsToAdd == 0) {
+		// Already at 9, just go to ON
+		Serial.println(F("-> Bounce complete, fully ON"));
+		wakeUpState = WAKE_ON;
+		allOn();
+	  } else {
+		unsigned long bounceDuration = ledsToAdd * 500;  // 500ms per LED
+		unsigned long elapsed = millis() - wakeUpStartTime;
+		if (elapsed >= bounceDuration) {
+		  Serial.println(F("-> Bounce complete, fully ON"));
+		  wakeUpState = WAKE_ON;
+		  allOn();
+		} else {
+		  int additionalLeds = (int)((elapsed * ledsToAdd) / bounceDuration);
+		  int ledCount = wakeUpBounceFromCount + additionalLeds;
+		  setLedCount(ledCount);
+		}
+	  }
+	}
+	return; // Exit early, don't run switch
+  }
+
+  // Mode 6: Night Warning - Adaptive LED cycling pattern
+  if (currentMode == MODE_NIGHT_WARNING) {
+	static int lastPirMode6 = -1;
+	static int lastLightMode6 = -1;
+	static WarnState lastWarnState = WARN_IDLE;
+
+	if (pirState != lastPirMode6 || abs(lightValue - lastLightMode6) > 100 || warnState != lastWarnState) {
+	  Serial.print(F("Mode6: PIR="));
+	  Serial.print(pirState);
+	  Serial.print(F(" Light="));
+	  Serial.print(lightValue);
+	  Serial.print(F(" State="));
+	  Serial.println(warnState);
+	  lastPirMode6 = pirState;
+	  lastLightMode6 = lightValue;
+	  lastWarnState = warnState;
+	}
+
+	// Update motion timer
+	if (pirState == HIGH) {
+	  warnLastMotionTime = millis();
+	  if (warnState == WARN_IDLE || warnState == WARN_COUNTDOWN) {
+		Serial.println(F("-> Starting warning cycle"));
+		warnState = WARN_INTRO;
+		warnStepTime = millis();
+		warnLedIndex = 0;
+	  }
+	}
+
+	if (warnState == WARN_INTRO || warnState == WARN_OUTRO || warnState == WARN_COUNTDOWN) {
+	  // Determine LED range based on current light level
+	  int startLed, endLed;
+	  if (lightValue >= 500) {
+		// Bright: only red LEDs (6, 7, 8)
+		startLed = 6;
+		endLed = 8;
+	  } else if (lightValue >= 250) {
+		// Medium: yellow + red LEDs (3-8)
+		startLed = 3;
+		endLed = 8;
+	  } else {
+		// Dark: all LEDs (0-8)
+		startLed = 0;
+		endLed = 8;
+	  }
+
+	  // Cycling speed: 100ms per step
+	  if (millis() - warnStepTime >= 100) {
+		warnStepTime = millis();
+
+		// Turn off all LEDs in the active range
+		for (int i = startLed; i <= endLed; i++) {
+		  digitalWrite(ledPins[i], LOW);
+		}
+
+		// Turn on the current LED in the cycle
+		if (warnLedIndex >= startLed && warnLedIndex <= endLed) {
+		  digitalWrite(ledPins[warnLedIndex], HIGH);
+		}
+
+		// Move to next LED
+		warnLedIndex++;
+		if (warnLedIndex > endLed) {
+		  warnLedIndex = startLed;  // Loop back
+		}
+	  }
+
+	  // Check if we should transition states
+	  if (warnState != WARN_COUNTDOWN && millis() - warnLastMotionTime >= 10000) {
+		Serial.println(F("-> Starting countdown (lights still scanning)"));
+		warnState = WARN_COUNTDOWN;
+	  } else if (warnState == WARN_COUNTDOWN && millis() - warnLastMotionTime >= 20000) {
+		Serial.println(F("-> Countdown complete, IDLE"));
+		warnState = WARN_IDLE;
+		allOff();
+	  }
+	} else if (warnState == WARN_IDLE) {
+	  allOff();
+	}
+	return; // Exit early, don't run switch
+  }
+
   switch (currentMode) {
 	case MODE_IDLE:
 	  allOff();
@@ -390,61 +629,6 @@ void applyMode(int pirState, int lightValue) {
 			hallwayLedCount = 9 - (int)((fadeElapsed * 9) / 12000);
 			setLedCount(hallwayLedCount);
 		  }
-		}
-	  }
-	  break;
-
-	case MODE_SMART_HOME_LIGHTING:
-	  // Progressive Wake-Up: LEDs gradually turn on over 10 seconds when occupied & dark
-	  if (pirState == HIGH && roomDark(lightValue)) {
-		if (wakeUpState == WAKE_OFF) {
-		  wakeUpState = WAKE_RISING;
-		  wakeUpStartTime = millis();
-		}
-		if (wakeUpState == WAKE_RISING) {
-		  unsigned long elapsed = millis() - wakeUpStartTime;
-		  if (elapsed >= 10000) {
-			// Fully on after 10 seconds - keep state so we don't restart animation
-			wakeUpState = WAKE_RISING;  // Stay in WAKE_RISING to prevent restart
-			allOn();
-		  } else {
-			// Gradually turn on LEDs: 1 new LED every ~1.1 seconds
-			int ledCount = (int)((elapsed * 9) / 10000);
-			setLedCount(ledCount);
-		  }
-		}
-	  } else {
-		wakeUpState = WAKE_OFF;
-		allOff();
-	  }
-	  break;
-
-	case MODE_NIGHT_WARNING:
-	  if (pirState == HIGH && lightValue < brightValue) {
-		if (warnState == WARN_IDLE || warnState == WARN_OUTRO) {
-		  allOff();
-		  warnLedIndex = -1;
-		  warnStepTime = millis();
-		  warnState = WARN_INTRO;
-		}
-	  }
-
-	  if (warnState == WARN_INTRO && millis() - warnStepTime >= 80) {
-		warnStepTime = millis();
-		warnLedIndex++;
-		if (warnLedIndex <= 8) {
-		  digitalWrite(ledPins[warnLedIndex], HIGH);
-		}
-		if (warnLedIndex >= 8) {
-		  warnState = WARN_OUTRO;
-		  warnLedIndex = 8;
-		}
-	  } else if (warnState == WARN_OUTRO && millis() - warnStepTime >= 300) {
-		warnStepTime = millis();
-		digitalWrite(ledPins[warnLedIndex], LOW);
-		warnLedIndex--;
-		if (warnLedIndex < 0) {
-		  warnState = WARN_IDLE;
 		}
 	  }
 	  break;

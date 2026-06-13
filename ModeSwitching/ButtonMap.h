@@ -1,3 +1,18 @@
+/*
+ * ButtonMap.h - IR Remote Command Mappings & Mode Definitions
+ * 
+ * Part of: Arduino Multi-Mode Lighting Controller
+ * Author: Jordan (ChampagneCODE3D)
+ * Education: Diploma in MET - SAIT
+ * 
+ * AI DECLARATION:
+ * This file was created with GitHub Copilot AI assistance for code structure and helper functions.
+ * IR command mappings were verified using the RawCodeTest logger sketch.
+ * Mode enum and label functions designed collaboratively.
+ * 
+ * Date: June 2026
+ */
+
 #pragma once
 #include <Arduino.h>
 
