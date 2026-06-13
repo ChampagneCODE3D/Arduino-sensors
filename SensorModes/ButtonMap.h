@@ -29,6 +29,7 @@
 #define CMD_4       0x14
 #define CMD_5       0x15
 #define CMD_6       0x16
+#define CMD_7       0x18
 
 enum ProgramMode {
     MODE_IDLE                = 0,
@@ -72,6 +73,7 @@ inline ProgramMode getModeFromCmd(uint8_t cmd) {
 		case CMD_4: return MODE_ENERGY_SAVING_ROOM;
 		case CMD_5: return MODE_SMART_HOME_LIGHTING;
 		case CMD_6: return MODE_NIGHT_WARNING;
+		case CMD_7: return MODE_TEMPERATURE;
 		default:    return MODE_IDLE;
 	}
 }
@@ -114,5 +116,5 @@ inline const char* getTempPairLabel(TempUnitPair pair) {
 
 inline bool isMappedCmd(uint8_t cmd) {
 	return (cmd == CMD_1 || cmd == CMD_2 || cmd == CMD_3 ||
-			cmd == CMD_4 || cmd == CMD_5 || cmd == CMD_6);
+			cmd == CMD_4 || cmd == CMD_5 || cmd == CMD_6 || cmd == CMD_7);
 }

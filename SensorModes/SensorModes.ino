@@ -85,8 +85,8 @@ unsigned long roomLightLastMotionTime = 0;
 // -------------------------
 const int tempPin = A2;
 TempUnitPair tempUnitPair = TEMP_C_F;
-int smoothedTempC_x10 = 0;       // tenths of ┬░C, smoothed
-int lastDisplayedTempC = -999;   // sentinel: force first draw
+float smoothedTempC = 0.0f;       // smoothed temperature in deg C
+float lastDisplayedTempC = -999.0f; // sentinel: force first draw
 TempUnitPair lastDisplayedPair = (TempUnitPair)(-1);
 enum WakeUpState { WAKE_OFF, WAKE_RISING, WAKE_ON, WAKE_COUNTDOWN, WAKE_FALLING, WAKE_BOUNCING };
 WakeUpState wakeUpState = WAKE_OFF;
@@ -163,13 +163,14 @@ bool roomDark(int lightValue) {
 
 // LM35: Vout = 10 mV/┬░C. With 5 V ref and 10-bit ADC:
 //   temp (┬░C ├ù 10) = raw ├ù 500 / 1023
-int readTempC_x10() {
-  return (int)((long)analogRead(tempPin) * 500L / 1023L);
+float readTempC() {
+  // LM35 on PCB module: 10mV/deg C, 5V reference
+  return analogRead(tempPin) * 0.48876f;
 }
 
-// Map 0ΓÇô50 ┬░C linearly to 0ΓÇô9 LEDs (green ΓåÆ yellow ΓåÆ red by hardware position)
-void updateTempLedBar(int tempC_x10) {
-  int count = (int)map((long)tempC_x10, 0L, 500L, 0L, 9L);
+// Map 0-50 deg C linearly to 0-9 LEDs (green -> yellow -> red by hardware position)
+void updateTempLedBar(float tempC) {
+  int count = (int)((tempC / 50.0f) * 9.0f);
   count = constrain(count, 0, 9);
   setLedCount(count);
 }
@@ -177,53 +178,40 @@ void updateTempLedBar(int tempC_x10) {
 void showTempOnLcd() {
   lcd.backlight();
 
-  // Only redraw when the integer ┬░C value or unit pair changes
-  if (lastDisplayedTempC != -999 &&
-      smoothedTempC_x10 / 10 == lastDisplayedTempC / 10 &&
-      tempUnitPair == lastDisplayedPair) {
+  // Only redraw every 20 seconds or when unit pair changes
+  static unsigned long lastTempLcdUpdate = 0;
+  if (tempUnitPair == lastDisplayedPair &&
+      lastDisplayedTempC != -999.0f &&
+      millis() - lastTempLcdUpdate < 20000) {
     return;
   }
-  lastDisplayedTempC = smoothedTempC_x10;
+  lastTempLcdUpdate = millis();
+  lastDisplayedTempC = smoothedTempC;
   lastDisplayedPair  = tempUnitPair;
 
-  // All conversions kept as integer tenths-of-degree to avoid floats
-  int32_t tC = smoothedTempC_x10;
-  int32_t tF = tC * 9L / 5L + 320L;          // ┬░F ├ù 10
-  int32_t tK = tC + 2731L;                    // K  ├ù 10  (273.1 ├ù 10)
-  int32_t tR = tK * 9L / 5L;                  // ┬░R ├ù 10
+  // Convert to all unit pairs as floats
+  float tC = smoothedTempC;
+  float tF = tC * 9.0f / 5.0f + 32.0f;
+  float tK = tC + 273.1f;
+  float tR = tK * 9.0f / 5.0f;
 
-  int v1, d1, v2, d2;
+  float v1, v2;
   char u1, u2;
   switch (tempUnitPair) {
-    case TEMP_C_F:
-      v1 = (int)(tC / 10); d1 = (int)abs(tC % 10); u1 = 'C';
-      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
-      break;
-    case TEMP_K_C:
-      v1 = (int)(tK / 10); d1 = (int)(tK % 10); u1 = 'K';
-      v2 = (int)(tC / 10); d2 = (int)abs(tC % 10); u2 = 'C';
-      break;
-    case TEMP_K_R:
-      v1 = (int)(tK / 10); d1 = (int)(tK % 10); u1 = 'K';
-      v2 = (int)(tR / 10); d2 = (int)(tR % 10); u2 = 'R';
-      break;
-    case TEMP_R_F:
-      v1 = (int)(tR / 10); d1 = (int)(tR % 10); u1 = 'R';
-      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
-      break;
-    default:
-      v1 = (int)(tC / 10); d1 = (int)abs(tC % 10); u1 = 'C';
-      v2 = (int)(tF / 10); d2 = (int)abs(tF % 10); u2 = 'F';
-      break;
+    case TEMP_C_F: v1 = tC; u1 = 'C'; v2 = tF; u2 = 'F'; break;
+    case TEMP_K_C: v1 = tK; u1 = 'K'; v2 = tC; u2 = 'C'; break;
+    case TEMP_K_R: v1 = tK; u1 = 'K'; v2 = tR; u2 = 'R'; break;
+    case TEMP_R_F: v1 = tR; u1 = 'R'; v2 = tF; u2 = 'F'; break;
+    default:       v1 = tC; u1 = 'C'; v2 = tF; u2 = 'F'; break;
   }
 
-  // Line 1: e.g. "25.3C  77.5F    "
+  // Line 1: e.g. "25.3°C  77.5°F"
   lcd.setCursor(0, 0);
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
-  lcd.print(v1); lcd.print('.'); lcd.print(d1); lcd.print(u1);
+  lcd.print(v1, 1); lcd.write(0xDF); lcd.print(u1);
   lcd.print(F("  "));
-  lcd.print(v2); lcd.print('.'); lcd.print(d2); lcd.print(u2);
+  lcd.print(v2, 1); lcd.write(0xDF); lcd.print(u2);
 
   // Line 2: e.g. "Temp  C/F"
   lcd.setCursor(0, 1);
@@ -671,7 +659,7 @@ void applyMode(int pirState, int lightValue) {
 
   // Mode 7: Temperature display - LED bar maps 0-50 ┬░C to 0-9 LEDs
   if (currentMode == MODE_TEMPERATURE) {
-    updateTempLedBar(smoothedTempC_x10);
+    updateTempLedBar(smoothedTempC);
     return;
   }
 
@@ -794,6 +782,7 @@ void setup() {
 
   pinMode(pirPin, INPUT);
   smoothedLightValue = analogRead(ldrPin);
+  smoothedTempC = readTempC();  // seed with real reading so smoothing starts correct
 
   lcd.init();
   lcd.backlight();
@@ -819,7 +808,7 @@ void loop() {
   int pirState = digitalRead(pirPin);
   int lightValue = analogRead(ldrPin);
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
-  smoothedTempC_x10  = (smoothedTempC_x10  * 2 + readTempC_x10()) / 3;
+  smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
@@ -883,8 +872,6 @@ void loop() {
   applyMode(pirState, smoothedLightValue);
 
   showModeOnLcd(smoothedLightValue, pirState);
-
-  // Debug output removed to reduce serial spam - Mode 3 has its own targeted debug
 
   delay(150);
 }
