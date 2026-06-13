@@ -1022,6 +1022,7 @@ void loop() {
 		  showSettingsLcd();
 		} else if (!inSettings && cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
+		  holdDisplay = false;
 		  setMode(MODE_IDLE);
 		  Serial.println(F("0 - Menu"));
 		} else if (cmd == CMD_POWER) {
