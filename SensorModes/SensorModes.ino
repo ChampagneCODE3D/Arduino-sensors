@@ -215,20 +215,21 @@ void showTempOnLcd() {
     default:       v1 = tC; u1 = 'C'; v2 = tF; u2 = 'F'; break;
   }
 
-  // Line 1: e.g. "25.3 deg C  77.5 deg F"
+  // Line 1: value + degree + scale name  e.g. "21.4°  Celsius"
   lcd.setCursor(0, 0);
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
-  lcd.print(v1, 1); lcd.write(0xDF); lcd.print(u1);
-  lcd.print(F("  "));
-  lcd.print(v2, 1); lcd.write(0xDF); lcd.print(u2);
+  lcd.print(v1, 1); lcd.write(0xDF);
+  lcd.setCursor(6, 0);
+  lcd.print(getTempUnitName(u1));
 
-  // Line 2: e.g. "Temp  C/F"
+  // Line 2: value + degree + scale name  e.g. "73.5°  Fahrenheit"
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
-  lcd.print(F("Temp  "));
-  lcd.print(getTempPairLabel(tempUnitPair));
+  lcd.print(v2, 1); lcd.write(0xDF);
+  lcd.setCursor(6, 1);
+  lcd.print(getTempUnitName(u2));
 }
 
 void showSettingsLcd() {

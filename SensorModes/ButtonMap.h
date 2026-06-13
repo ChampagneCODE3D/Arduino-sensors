@@ -131,6 +131,16 @@ inline const char* getTempPairLabel(TempUnitPair pair) {
   }
 }
 
+inline const char* getTempUnitName(char unit) {
+  switch (unit) {
+	case 'C': return "Celsius";
+	case 'F': return "Fahrenheit";
+	case 'K': return "Kelvin";
+	case 'R': return "Rankine";
+	default:  return "";
+  }
+}
+
 inline bool isMappedCmd(uint8_t cmd) {
 	return (cmd == CMD_1 || cmd == CMD_2 || cmd == CMD_3 ||
 			cmd == CMD_4 || cmd == CMD_5 || cmd == CMD_6 ||
