@@ -25,6 +25,7 @@
 #define CMD_REVERSE 0x04
 #define CMD_0       0x0C
 #define CMD_EQ      0x0D
+#define CMD_STREPT  0x0E
 #define CMD_UP      0x0A
 #define CMD_DOWN    0x08
 #define CMD_1       0x10

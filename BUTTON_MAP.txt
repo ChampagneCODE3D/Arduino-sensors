@@ -23,6 +23,7 @@ Verified : RawCodeTest logger sketch
 | 7        | 0x18    | Mode 7 - Temperature      |
 | 8        | 0x19    | Mode 8 - Mic Bar          |
 | 9        | 0x1A    | Mode 9 - UV Index         |
+| ST/REPT  | 0x0E    | Freeze/unfreeze display ([H] shown) |
 +----------+---------+---------------------------+
 
 Settings Menu (press EQ to enter)

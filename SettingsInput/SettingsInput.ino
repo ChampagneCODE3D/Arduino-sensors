@@ -88,6 +88,7 @@ const int soundPin = A1;  // DFR0034 sound sensor
 const int uvPin    = A3;  // GUVA-S12SD UV sensor
 int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
 bool lcdOn = true;         // LCD backlight/display toggle
+bool holdDisplay = false;  // ST/REPT freezes LCD readout like a meter hold
 bool inSettings = false;   // EQ settings menu active
 int settingsParam = 0;     // 0 = brightValue, 1 = darkValue
 
@@ -315,6 +316,7 @@ void showIdleMenu() {
 
 void showModeOnLcd(int lightValue, int pirState, int soundValue) {
   lcd.backlight();
+  const char* cornerLabel = holdDisplay ? "[H] " : getModeCornerLabel(currentMode);
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
@@ -337,7 +339,7 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	  lcd.print(F("Sound:"));
 	  lcd.print(raw);
 	  lcd.setCursor(10, 0);
-	  lcd.print(getModeCornerLabel(currentMode));
+	  lcd.print(cornerLabel);
 	  int bars = map(raw, 0, 250, 0, 16);
 	  bars = constrain(bars, 1, 16);
 	  lcd.setCursor(0, 1);
@@ -366,7 +368,7 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	  lcd.print(F("Level:"));
 	  lcd.print(raw);
 	  lcd.setCursor(10, 0);
-	  lcd.print(getModeCornerLabel(currentMode));
+	  lcd.print(cornerLabel);
 	  int bars = map(raw, 0, 1023, 0, 16);
 	  bars = constrain(bars, 0, 16);
 	  lcd.setCursor(0, 1);
@@ -386,7 +388,7 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	lcd.setCursor(10, 0);
 	lcd.print("      ");
 	lcd.setCursor(10, 0);
-	lcd.print(getModeCornerLabel(currentMode));
+	lcd.print(cornerLabel);
 	lastDisplayedLight = lightValue;
 	lastDisplayedMode = (int)currentMode;
   }
@@ -1069,6 +1071,10 @@ void loop() {
 		  setMode(selectedMode);
 		  Serial.print(F("Mode: "));
 		  Serial.println(getModeLabel(currentMode));
+		} else if (cmd == CMD_STREPT) {
+		  holdDisplay = !holdDisplay;
+		  if (!holdDisplay) lastDisplayedMode = -1;  // force redraw on unfreeze
+		  Serial.println(holdDisplay ? F("Hold ON") : F("Hold OFF"));
 		} else {
 		  Serial.print(F("Ignored CMD: 0x"));
 		  Serial.println(cmd, HEX);
@@ -1081,7 +1087,7 @@ void loop() {
 	if (!inSettings) {
 	applyMode(pirState, smoothedLightValue, soundValue);
 
-	if (lcdOn) {
+	if (lcdOn && !holdDisplay) {
 	  showModeOnLcd(smoothedLightValue, pirState, soundValue);
 	}
   }
