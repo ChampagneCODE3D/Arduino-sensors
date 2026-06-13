@@ -23,6 +23,7 @@
 #define CMD_POWER   0x00
 #define CMD_FORWARD 0x06
 #define CMD_REVERSE 0x04
+#define CMD_0       0x0C
 #define CMD_1       0x10
 #define CMD_2       0x11
 #define CMD_3       0x12
@@ -39,7 +40,7 @@ enum ProgramMode {
     MODE_HALLWAY_LIGHT       = 2,
     MODE_STREETLIGHT         = 3,
     MODE_ENERGY_SAVING_ROOM  = 4,
-    MODE_SMART_HOME_LIGHTING = 5,
+    MODE_SMART_HOME_LIGHTING = 5,  // Gradual sunrise/sunset cycle - gentle wake-up, avoids startle response, good for sensory sensitivities and neurodivergent users
     MODE_NIGHT_WARNING       = 6,
     MODE_TEMPERATURE         = 7,
     MODE_SOUND_BAR           = 8,  // Mode 8: Sound level bar (DFR0034 on A1)
@@ -62,8 +63,8 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_HALLWAY_LIGHT:       return "Hallway";
 		case MODE_STREETLIGHT:         return "Streetlight";
 		case MODE_ENERGY_SAVING_ROOM:  return "Energy Save";
-		case MODE_SMART_HOME_LIGHTING: return "Wake-Up Light";
-		case MODE_NIGHT_WARNING:       return "Night Warn";
+		case MODE_SMART_HOME_LIGHTING: return "Smart Home";
+		case MODE_NIGHT_WARNING:       return "Warning Light";
 		case MODE_TEMPERATURE:         return "Temperature";
 		case MODE_SOUND_BAR:           return "Mic Bar";
 		case MODE_UV_INDEX:            return "UV Index";

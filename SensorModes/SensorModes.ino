@@ -87,6 +87,7 @@ const int tempPin = A2;
 const int soundPin = A1;  // DFR0034 sound sensor
 const int uvPin    = A3;  // GUVA-S12SD UV sensor
 int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
+bool lcdOn = true;         // LCD backlight/display toggle
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -165,8 +166,8 @@ bool roomDark(int lightValue) {
 // TEMPERATURE HELPERS
 // -------------------------
 
-// LM35: Vout = 10 mV/┬░C. With 5 V ref and 10-bit ADC:
-//   temp (┬░C ├ù 10) = raw ├ù 500 / 1023
+// LM35: Vout = 10 mV/deg C. With 5V ref and 10-bit ADC:
+//   temp (deg C x 10) = raw x 500 / 1023
 float readTempC() {
   // LM35 on PCB module: 10mV/deg C, 5V reference
   return analogRead(tempPin) * 0.48876f;
@@ -209,7 +210,7 @@ void showTempOnLcd() {
     default:       v1 = tC; u1 = 'C'; v2 = tF; u2 = 'F'; break;
   }
 
-  // Line 1: e.g. "25.3°C  77.5°F"
+  // Line 1: e.g. "25.3 deg C  77.5 deg F"
   lcd.setCursor(0, 0);
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
@@ -226,7 +227,7 @@ void showTempOnLcd() {
 }
 
 void showIdleMenu() {
-  int page = (millis() / 2500) % 4;
+  int page = (millis() / 2500) % 6;
   if (page == lastMenuPage) {
 	return;
   }
@@ -237,27 +238,39 @@ void showIdleMenu() {
   switch (page) {
 	case 0:
 	  lcd.setCursor(0, 0);
-	  lcd.print("1 Room Light");
+	  lcd.print("0 Menu");
 	  lcd.setCursor(0, 1);
-	  lcd.print("2 Hallway");
+	  lcd.print("1 Room Light");
 	  break;
 	case 1:
 	  lcd.setCursor(0, 0);
-	  lcd.print("3 Streetlight");
+	  lcd.print("2 Hallway");
 	  lcd.setCursor(0, 1);
-	  lcd.print("4 Energy Save");
+	  lcd.print("3 Streetlight");
 	  break;
 	case 2:
 	  lcd.setCursor(0, 0);
-	  lcd.print("5 Wake-Up Light");
+	  lcd.print("4 Energy Save");
 	  lcd.setCursor(0, 1);
-	  lcd.print("6 Night Warn");
+	  lcd.print("5 Smart Home");
 	  break;
 	case 3:
 	  lcd.setCursor(0, 0);
-	  lcd.print("7 Temperature");
+	  lcd.print("6 Warning Light");
 	  lcd.setCursor(0, 1);
-	  lcd.print("8 Sound  9 UV");
+	  lcd.print("7 Temperature");
+	  break;
+	case 4:
+	  lcd.setCursor(0, 0);
+	  lcd.print("8 Sound Bar");
+	  lcd.setCursor(0, 1);
+	  lcd.print("9 UV Index");
+	  break;
+	case 5:
+	  lcd.setCursor(0, 0);
+	  lcd.print("Power ON/OFF");
+	  lcd.setCursor(0, 1);
+	  lcd.print("LCD screen");
 	  break;
   }
 }
@@ -893,13 +906,33 @@ void loop() {
 		lastIrCode = cmd;
 		lastIrTime = millis();
 
-		if (cmd == CMD_POWER) {
-		  Serial.println(F("POWER pressed - switching to IDLE"));
+		// Any button press wakes LCD if it was off
+		if (!lcdOn && cmd != CMD_POWER) {
+		  lcdOn = true;
+		  lcd.backlight();
 		  setMode(MODE_IDLE);
-		  Serial.println(F("Mode: Idle"));
+		  Serial.println(F("LCD wake"));
+		  return;
+		}
+
+		if (cmd == CMD_0) {
+		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
+		  setMode(MODE_IDLE);
+		  Serial.println(F("0 - Menu"));
+		} else if (cmd == CMD_POWER) {
+		  lcdOn = !lcdOn;
+		  if (lcdOn) {
+			lcd.backlight();
+			setMode(MODE_IDLE);
+			Serial.println(F("LCD on - Menu"));
+		  } else {
+			lcd.noBacklight();
+			lcd.clear();
+			Serial.println(F("LCD off"));
+		  }
 		} else if (cmd == CMD_FORWARD) {
 		  if (currentMode == MODE_TEMPERATURE) {
-			// Cycle unit pair forward: C/F ΓåÆ K/C ΓåÆ K/R ΓåÆ R/F ΓåÆ C/F
+			// Cycle unit pair forward: C/F -> K/C -> K/R -> R/F -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 1) % 4);
 			lastDisplayedTempC = -999;  // force LCD refresh
 			lastDisplayedPair  = (TempUnitPair)(-1);
@@ -914,7 +947,7 @@ void loop() {
 		  }
 		} else if (cmd == CMD_REVERSE) {
 		  if (currentMode == MODE_TEMPERATURE) {
-			// Cycle unit pair backward: C/F ΓåÆ R/F ΓåÆ K/R ΓåÆ K/C ΓåÆ C/F
+			// Cycle unit pair backward: C/F -> R/F -> K/R -> K/C -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 3) % 4);
 			lastDisplayedTempC = -999;  // force LCD refresh
 			lastDisplayedPair  = (TempUnitPair)(-1);
@@ -943,7 +976,9 @@ void loop() {
 
   applyMode(pirState, smoothedLightValue, soundValue);
 
-  showModeOnLcd(smoothedLightValue, pirState, soundValue);
+  if (lcdOn) {
+    showModeOnLcd(smoothedLightValue, pirState, soundValue);
+  }
 
   delay(150);
 }
