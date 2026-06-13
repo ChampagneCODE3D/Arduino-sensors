@@ -950,7 +950,7 @@ void loop() {
 		if (!lcdOn && cmd != CMD_POWER) {
 		  lcdOn = true;
 		  lcd.backlight();
-		  setMode(MODE_IDLE);
+		  lastDisplayedMode = -1;  // force redraw without changing mode
 		  Serial.println(F("LCD wake"));
 		  return;
 		}
@@ -1026,8 +1026,8 @@ void loop() {
 		  lcdOn = !lcdOn;
 		  if (lcdOn) {
 			lcd.backlight();
-			setMode(MODE_IDLE);
-			Serial.println(F("LCD on - Menu"));
+			lastDisplayedMode = -1;  // force redraw of current mode
+			Serial.println(F("LCD on"));
 		  } else {
 			lcd.noBacklight();
 			lcd.clear();
