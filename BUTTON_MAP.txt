@@ -1,0 +1,41 @@
+IR Remote Button Mapping
+========================
+Protocol : NEC
+Address  : 0xBF00
+Verified : RawCodeTest logger sketch
+
++----------+---------+---------------------------+
+| Button   | CMD hex | Function                  |
++----------+---------+---------------------------+
+| Power    | 0x00    | LCD on/off toggle         |
+| Forward  | 0x06    | Next mode / temp unit >>  |
+| Reverse  | 0x04    | Prev mode / temp unit <<  |
+| EQ       | 0x0D    | Settings menu / confirm   |
+| Up       | 0x0A    | Threshold +10 (settings)  |
+| Down     | 0x08    | Threshold -10 (settings)  |
+| 0        | 0x0C    | Return to menu            |
+| 1        | 0x10    | Mode 1 - Room Light       |
+| 2        | 0x11    | Mode 2 - Hallway          |
+| 3        | 0x12    | Mode 3 - Streetlight      |
+| 4        | 0x14    | Mode 4 - Eco Light        |
+| 5        | 0x15    | Mode 5 - Smart Home       |
+| 6        | 0x16    | Mode 6 - Warning Light    |
+| 7        | 0x18    | Mode 7 - Temperature      |
+| 8        | 0x19    | Mode 8 - Mic Bar          |
+| 9        | 0x1A    | Mode 9 - UV Index         |
++----------+---------+---------------------------+
+
+Settings Menu (press EQ to enter)
+----------------------------------
+Fwd / Rev   : switch between Bright and Dark threshold
+Up / Down   : nudge selected value +/- 10
+1-9 keys    : type a value directly (up to 4 digits, max 1023)
+0           : clear typed digits
+EQ          : confirm typed value / exit settings
+
+Temperature Mode (Mode 7) - Forward / Reverse cycles unit pairs
+----------------------------------------------------------------
+Pair 1 : C / F   (Celsius / Fahrenheit)
+Pair 2 : K / C   (Kelvin / Celsius)
+Pair 3 : K / R   (Kelvin / Rankine)
+Pair 4 : R / F   (Rankine / Fahrenheit)
