@@ -1,7 +1,8 @@
-# Arduino Sensors Project
+# Howl's Moving Arduino
 
-Multi-mode sensor controller built on Arduino Uno R3 (DFRduino clone) using Arduino CLI + Visual Studio Community 2026.  
-Part of a larger multi-board robotics and home automation platform — see **Hardware Inventory** and **Project Roadmap** below.
+**A multi-board sensor controller, operator interface, and eventual self-propelled platform.**  
+Currently running on Arduino Uno R3 (DFRduino clone) with Arduino CLI + Visual Studio Community 2026.  
+Part of a larger robotics and home automation project — see **Hardware Inventory** and **Project Roadmap** below.
 
 ## Author
 
@@ -13,6 +14,30 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 ---
 
 ## Project Log
+
+### June 2026 — Full Button Map, Lux Display, LED Kill, Background States
+
+Pushed hard this session — everything from completing the 21-button IR map to rethinking how the LED kill should work.
+
+**What got built:**
+- All 21 remote buttons now mapped and functional — nothing left as no-op
+  - `PLAY` resets the current mode (clears stuck timers, PIR state)
+  - `VOL+` / `VOL-` adjust sound ceiling in Mode 8, or LDR threshold everywhere else
+  - `FUNC` kills LED output without leaving the mode — `[X]` shown in corner
+  - `FUNC` inside settings shows a help screen for the settings controls
+- `ledsOff` gate moved to output functions (`setLedCount`, `greenOnly`, `collapseToMiddle`) instead of early-returning from `applyMode` — state machines, timers, and animations now keep running in the background when LEDs are killed. Sunrise/sunset, warning scans, hallway fades all continue invisibly and snap back correctly on re-enable
+- Lux display replaces raw LDR value — GL5528 + 10kΩ pull-down formula, real engineering units on the LCD
+- Temp display redesigned: value + degree symbol left-aligned, full scale name right (`Celsius`, `Fahrenheit`, `Kelvin`, `Rankine`) — no cryptic abbreviations
+- Temp LED bar rescaled: 0–30°C range so 19°C sits at ~6 LEDs into yellow, not a single green LED
+- `[H]` hold indicator and `[X]` LED kill indicator share the corner label slot — clean, consistent
+
+**What got fought:**
+- `FUNC` re-enable was slow because `applyMode` runs on the next loop tick (150ms delay). Fixed by calling `applyMode` immediately on re-enable from the IR handler
+- Lux formula initially had the voltage divider backwards — resistor is pull-down not pull-up, so R_ldr = 10k×(1023-raw)/raw not the other way. Caught before upload by checking the circuit
+- `allOff()` needed to still fire when FUNC first kills LEDs, but be gated during normal mode runs — solved by keeping `allOff()` ungated and gating only the output helpers that modes call during normal operation
+
+**Where it's going:**
+TODO.md has the full list. Next priorities are finishing hardware testing of SettingsInput, calibrating lux against a known light source, and starting the first multi-sensor combo mode (Comfort Index). Long term the whole thing ports to the Mega and eventually drives a self-propelled platform — the Howl's Moving Castle build.
 
 ### June 2026 — Sensor Modes & UI Complete
 
