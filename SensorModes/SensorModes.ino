@@ -178,6 +178,16 @@ float readTempC() {
   return analogRead(tempPin) * 0.48876f;
 }
 
+// GL5528 LDR + 10k pull-down resistor (5V->LDR->A0->10k->GND)
+// Calibrated for GL5528; adjust if using a different LDR model
+float rawToLux(int raw) {
+  if (raw <= 0) return 0.0f;
+  if (raw >= 1023) return 100000.0f;
+  float rLdr = 10000.0f * (1023.0f - raw) / raw;  // ohms
+  float rKohms = rLdr / 1000.0f;
+  return 255.0f / pow(rKohms, 1.4f);              // GL5528 curve approximation
+}
+
 // Map 15-35 deg C to 0-9 LEDs across human comfort range (green -> yellow -> red)
 void updateTempLedBar(float tempC) {
   // Scale: 0C = 0 LEDs, 30C = 9 LEDs
@@ -374,12 +384,9 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 
   if (lightValue != lastDisplayedLight || (int)currentMode != lastDisplayedMode) {
 	lcd.setCursor(0, 0);
-	lcd.print("LDR:");
-	lcd.print("      ");
+	lcd.print(F("Lux:            "));
 	lcd.setCursor(4, 0);
-	lcd.print(lightValue);
-	lcd.setCursor(10, 0);
-	lcd.print("      ");
+	lcd.print((int)rawToLux(lightValue));
 	lcd.setCursor(10, 0);
 	lcd.print(cornerLabel);
 	lastDisplayedLight = lightValue;
