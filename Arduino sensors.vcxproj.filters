@@ -25,6 +25,7 @@
     <None Include="README.md" />
     <None Include="RawCodeTest\RawCodeTest.ino" />
     <None Include=".github\copilot-instructions.md" />
+    <None Include="TODO.md" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h">
@@ -33,5 +34,8 @@
     <ClInclude Include="ModeSwitching\ButtonMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="BUTTON_MAP.txt" />
   </ItemGroup>
 </Project>

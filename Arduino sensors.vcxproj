@@ -149,10 +149,14 @@
     <None Include="RemoteButtonMapper.ino" />
     <None Include="RemoteButtonMapper\RemoteButtonMapper.ino" />
     <None Include="SDButtonLogger\SDButtonLogger.ino" />
+    <None Include="TODO.md" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h" />
     <ClInclude Include="ModeSwitching\ButtonMap.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="BUTTON_MAP.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
