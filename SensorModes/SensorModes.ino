@@ -85,6 +85,8 @@ unsigned long roomLightLastMotionTime = 0;
 // -------------------------
 const int tempPin = A2;
 const int soundPin = A1;  // DFR0034 sound sensor
+const int uvPin    = A3;  // GUVA-S12SD UV sensor
+int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -255,7 +257,7 @@ void showIdleMenu() {
 	  lcd.setCursor(0, 0);
 	  lcd.print("7 Temperature");
 	  lcd.setCursor(0, 1);
-	  lcd.print("8 Mic Bar");
+	  lcd.print("8 Sound  9 UV");
 	  break;
   }
 }
@@ -289,6 +291,35 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	  lcd.print(getModeCornerLabel(currentMode));
 	  int bars = map(raw, 0, 250, 0, 16);
 	  bars = constrain(bars, 1, 16);
+	  lcd.setCursor(0, 1);
+	  for (int i = 0; i < 16; i++) {
+		lcd.write(i < bars ? 0xFF : ' ');
+	  }
+	}
+	return;
+  }
+
+  if (currentMode == MODE_UV_INDEX) {
+	int raw = analogRead(uvPin);
+	static unsigned long lastUvDebug = 0;
+	if (millis() - lastUvDebug > 1000) {
+	  lastUvDebug = millis();
+	  Serial.print(F("A0:")); Serial.print(analogRead(A0));
+	  Serial.print(F(" A1:")); Serial.print(analogRead(A1));
+	  Serial.print(F(" A2:")); Serial.print(analogRead(A2));
+	  Serial.print(F(" A3:")); Serial.println(analogRead(A3));
+	}
+	if (lastDisplayedUV == -1 || abs(raw - lastDisplayedUV) > 3) {
+	  lastDisplayedUV = raw;
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("                "));
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("Level:"));
+	  lcd.print(raw);
+	  lcd.setCursor(10, 0);
+	  lcd.print(getModeCornerLabel(currentMode));
+	  int bars = map(raw, 0, 1023, 0, 16);
+	  bars = constrain(bars, 0, 16);
 	  lcd.setCursor(0, 1);
 	  for (int i = 0; i < 16; i++) {
 		lcd.write(i < bars ? 0xFF : ' ');
@@ -695,6 +726,15 @@ void applyMode(int pirState, int lightValue, int soundValue) {
     return;
   }
 
+  // Mode 9: UV index bar - GUVA-S12SD on A3
+  if (currentMode == MODE_UV_INDEX) {
+    int raw = analogRead(uvPin);
+    int count = map(raw, 0, 1023, 0, 9);
+    count = constrain(count, 0, 9);
+    setLedCount(count);
+    return;
+  }
+
   switch (currentMode) {
 	case MODE_IDLE:
 	  allOff();
@@ -784,6 +824,7 @@ void setMode(ProgramMode mode) {
   lastDisplayedTempC = -999;
   lastDisplayedPair  = (TempUnitPair)(-1);
   lastDisplayedSound = -1;
+  lastDisplayedUV    = -1;
 
   // SD logging removed to save RAM
 
@@ -866,7 +907,7 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
 			int next = (currentMode == MODE_IDLE) ? MODE_SMART_ROOM_LIGHT
-					 : (((int)currentMode % 8) + 1);
+					 : (((int)currentMode % 9) + 1);
 			setMode((ProgramMode)next);
 			Serial.print(F("Mode >> : "));
 			Serial.println(getModeLabel(currentMode));
@@ -881,7 +922,7 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
 			int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
-					 ? MODE_SOUND_BAR
+					 ? MODE_UV_INDEX
 					 : ((int)currentMode - 1);
 			setMode((ProgramMode)prev);
 			Serial.print(F("Mode << : "));
