@@ -168,9 +168,9 @@ float readTempC() {
   return analogRead(tempPin) * 0.48876f;
 }
 
-// Map 0-50 deg C linearly to 0-9 LEDs (green -> yellow -> red by hardware position)
+// Map 15-35 deg C to 0-9 LEDs across human comfort range (green -> yellow -> red)
 void updateTempLedBar(float tempC) {
-  int count = (int)((tempC / 50.0f) * 9.0f);
+  int count = (int)((tempC - 15.0f) / 20.0f * 9.0f);
   count = constrain(count, 0, 9);
   setLedCount(count);
 }
@@ -253,7 +253,7 @@ void showIdleMenu() {
 	  lcd.setCursor(0, 0);
 	  lcd.print("7 Temperature");
 	  lcd.setCursor(0, 1);
-	  lcd.print("fw/rv=unit pair");
+	  lcd.print("8 Temp NTC");
 	  break;
   }
 }
@@ -835,7 +835,7 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
 			int next = (currentMode == MODE_IDLE) ? MODE_SMART_ROOM_LIGHT
-					 : (((int)currentMode % 7) + 1);
+					 : (((int)currentMode % 8) + 1);
 			setMode((ProgramMode)next);
 			Serial.print(F("Mode >> : "));
 			Serial.println(getModeLabel(currentMode));
@@ -850,7 +850,7 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
 			int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
-					 ? MODE_TEMPERATURE
+					 ? MODE_TEMP_NTC
 					 : ((int)currentMode - 1);
 			setMode((ProgramMode)prev);
 			Serial.print(F("Mode << : "));
