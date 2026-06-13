@@ -84,6 +84,7 @@ unsigned long roomLightLastMotionTime = 0;
 // (Mode 7 - LM35 on A2)
 // -------------------------
 const int tempPin = A2;
+const int soundPin = A1;  // DFR0034 sound sensor
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -96,6 +97,7 @@ int wakeUpBounceFromCount = 0;  // LED count when bounce started
 int lastPirStateMode3 = -1;  // For Mode 3 change detection
 int lastStreetStateMode3 = -1;  // For Mode 3 change detection
 unsigned long streetLightLastMotionTime = 0;  // For Mode 3 UI countdown (always runs)
+int lastDisplayedSound = -1;  // For Mode 8 LCD refresh
 
 // -------------------------
 // HELPERS
@@ -253,14 +255,14 @@ void showIdleMenu() {
 	  lcd.setCursor(0, 0);
 	  lcd.print("7 Temperature");
 	  lcd.setCursor(0, 1);
-	  lcd.print("8 Temp NTC");
+	  lcd.print("8 Mic Bar");
 	  break;
   }
 }
 
 
 
-void showModeOnLcd(int lightValue, int pirState) {
+void showModeOnLcd(int lightValue, int pirState, int soundValue) {
   lcd.backlight();
 
   if (currentMode == MODE_IDLE) {
@@ -270,6 +272,28 @@ void showModeOnLcd(int lightValue, int pirState) {
 
   if (currentMode == MODE_TEMPERATURE) {
 	showTempOnLcd();
+	return;
+  }
+
+  if (currentMode == MODE_SOUND_BAR) {
+	int raw = soundValue;
+	if (lastDisplayedSound == -1 || abs(raw - lastDisplayedSound) > 5) {
+	  lastDisplayedSound = raw;
+	  Serial.print(F("Sound:")); Serial.println(raw);
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("                "));
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("Sound:"));
+	  lcd.print(raw);
+	  lcd.setCursor(10, 0);
+	  lcd.print(getModeCornerLabel(currentMode));
+	  int bars = map(raw, 0, 250, 0, 16);
+	  bars = constrain(bars, 1, 16);
+	  lcd.setCursor(0, 1);
+	  for (int i = 0; i < 16; i++) {
+		lcd.write(i < bars ? 0xFF : ' ');
+	  }
+	}
 	return;
   }
 
@@ -370,7 +394,7 @@ void showModeOnLcd(int lightValue, int pirState) {
   }
 }
 
-void applyMode(int pirState, int lightValue) {
+void applyMode(int pirState, int lightValue, int soundValue) {
 
   // Mode 3 special handling - switch statement not working for this case
   if (currentMode == MODE_STREETLIGHT) {
@@ -657,9 +681,17 @@ void applyMode(int pirState, int lightValue) {
 	return; // Exit early, don't run switch
   }
 
-  // Mode 7: Temperature display - LED bar maps 0-50 ┬░C to 0-9 LEDs
+  // Mode 7: Temperature display - LED bar maps 15-35 deg C comfort range to 0-9 LEDs
   if (currentMode == MODE_TEMPERATURE) {
     updateTempLedBar(smoothedTempC);
+    return;
+  }
+
+  // Mode 9: Sound bar - peak-hold LED bar responding to mic level
+  if (currentMode == MODE_SOUND_BAR) {
+    int count = map(soundValue, 0, 250, 0, 9);
+    count = constrain(count, 1, 9);
+    setLedCount(count);
     return;
   }
 
@@ -751,6 +783,7 @@ void setMode(ProgramMode mode) {
   tempUnitPair     = TEMP_C_F;
   lastDisplayedTempC = -999;
   lastDisplayedPair  = (TempUnitPair)(-1);
+  lastDisplayedSound = -1;
 
   // SD logging removed to save RAM
 
@@ -763,10 +796,7 @@ void setMode(ProgramMode mode) {
     return;
   }
 
-  lcd.setCursor(0, 0);
-  lcd.print(getModeLabel(currentMode));
-  lcd.setCursor(0, 1);
-  lcd.print(getModeDescription(currentMode));
+  lcd.clear();
 }
 
 // -------------------------
@@ -807,6 +837,7 @@ void setup() {
 void loop() {
   int pirState = digitalRead(pirPin);
   int lightValue = analogRead(ldrPin);
+  int soundValue = analogRead(soundPin);
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
@@ -850,7 +881,7 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
 			int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
-					 ? MODE_TEMP_NTC
+					 ? MODE_SOUND_BAR
 					 : ((int)currentMode - 1);
 			setMode((ProgramMode)prev);
 			Serial.print(F("Mode << : "));
@@ -869,9 +900,9 @@ void loop() {
 	}
   }
 
-  applyMode(pirState, smoothedLightValue);
+  applyMode(pirState, smoothedLightValue, soundValue);
 
-  showModeOnLcd(smoothedLightValue, pirState);
+  showModeOnLcd(smoothedLightValue, pirState, soundValue);
 
   delay(150);
 }

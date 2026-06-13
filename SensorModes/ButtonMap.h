@@ -30,7 +30,7 @@
 #define CMD_5       0x15
 #define CMD_6       0x16
 #define CMD_7       0x18
-#define CMD_8       0x17
+#define CMD_8       0x19
 
 enum ProgramMode {
     MODE_IDLE                = 0,
@@ -41,7 +41,7 @@ enum ProgramMode {
     MODE_SMART_HOME_LIGHTING = 5,
     MODE_NIGHT_WARNING       = 6,
     MODE_TEMPERATURE         = 7,
-    MODE_TEMP_NTC            = 8   // Mode 8: NTC analog module - compare with LM35 on Mega
+    MODE_SOUND_BAR           = 8   // Mode 8: Sound level bar (DFR0034 on A1)
 };
 
 // Temperature unit pair sub-modes for Mode 7
@@ -63,7 +63,7 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_SMART_HOME_LIGHTING: return "Wake-Up Light";
 		case MODE_NIGHT_WARNING:       return "Night Warn";
 		case MODE_TEMPERATURE:         return "Temperature";
-		case MODE_TEMP_NTC:            return "Temp NTC";
+		case MODE_SOUND_BAR:           return "Mic Bar";
 		default:                       return "Idle";
 	}
 }
@@ -77,7 +77,7 @@ inline ProgramMode getModeFromCmd(uint8_t cmd) {
 		case CMD_5: return MODE_SMART_HOME_LIGHTING;
 		case CMD_6: return MODE_NIGHT_WARNING;
 		case CMD_7: return MODE_TEMPERATURE;
-		case CMD_8: return MODE_TEMP_NTC;
+		case CMD_8: return MODE_SOUND_BAR;
 		default:    return MODE_IDLE;
 	}
 }
@@ -91,8 +91,8 @@ inline const char* getModeDescription(ProgramMode mode) {
 		case MODE_SMART_HOME_LIGHTING: return "Progressive";
 		case MODE_NIGHT_WARNING:       return "Warning fade";
 		case MODE_TEMPERATURE:         return "fw/rv=unit pair";
-		case MODE_TEMP_NTC:            return "NTC analog";
-		default:                       return "Select 1-7";
+		case MODE_SOUND_BAR:           return "Level meter";
+		default:                       return "Select 1-8";
 	}
 }
 
@@ -105,7 +105,7 @@ inline const char* getModeCornerLabel(ProgramMode mode) {
 	case MODE_SMART_HOME_LIGHTING: return "Wake";
 	case MODE_NIGHT_WARNING:       return "Warn";
 	case MODE_TEMPERATURE:         return "Temp";
-	case MODE_TEMP_NTC:            return "NTC";
+	case MODE_SOUND_BAR:           return "Sound";
 	default:                       return "";
   }
 }
@@ -122,5 +122,6 @@ inline const char* getTempPairLabel(TempUnitPair pair) {
 
 inline bool isMappedCmd(uint8_t cmd) {
 	return (cmd == CMD_1 || cmd == CMD_2 || cmd == CMD_3 ||
-			cmd == CMD_4 || cmd == CMD_5 || cmd == CMD_6 || cmd == CMD_7 || cmd == CMD_8);
+			cmd == CMD_4 || cmd == CMD_5 || cmd == CMD_6 ||
+			cmd == CMD_7 || cmd == CMD_8);
 }

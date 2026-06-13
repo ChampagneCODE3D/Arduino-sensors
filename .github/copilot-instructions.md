@@ -9,3 +9,16 @@
 - Removed SD/SPI to stabilize RAM.
 - Implement per-mode timers with a consistent "Occupied/Vacant in Xs" UI.
 - Future enhancements may include temperature, sound, and UV sensor modes as simple light bar meters.
+
+## Modular Multi Node Smart Environment System (MSCWOW)
+- DFRduino Uno R3 clone: main node running PIR+LDR lighting controller (existing SensorModes sketch), Keyestudio LCD.
+- Arduino Uno R4 WiFi: secondary node for servo, RGB LED strip, buzzer, optional web interface.
+- Arduino Uno Q (4GB RAM, 32GB storage, Linux SBC): programming/testing station, also runs AI object recognition web app via webcam.
+- Communication: SD card first, then WiFi/Bluetooth if time allows.
+- Optional: SIYEENOVE 4 DOF robot arm (already tested via web app and SBC mode), iPixel LED display, Arduino Mega, micro:bit.
+- Sensors available: GUVA UV, flame, alcohol, sound, IMU, temp/humidity, PIR, LDR (from SunFounder Elite Explorer Kit + Keyestudio kit).
+- 3D printing: dashboard enclosure, sensor panel, LED strip mount, Uno Q case, robot arm base, iPixel stand.
+- Project goal: build foundation of modular expandable system, not complete every module.
+
+## Personal Considerations
+- Jordan has ADHD and arthritis - uses Copilot for organization/wording, all design decisions are his own.
