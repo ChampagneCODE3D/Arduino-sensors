@@ -12,6 +12,33 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 
 ---
 
+## Project Log
+
+### June 2026 — Sensor Modes & UI Complete
+
+Started this phase wanting to add temperature, sound and UV sensing on top of the existing 6-mode lighting controller, and ended up building a full operator interface in the process.
+
+**What got built:**
+- 3 new sensor modes (Modes 7–9): temperature with 4 unit pairs, sound level bar, UV index stub
+- EQ settings menu for live threshold tuning without reflashing — type values directly with the IR number keys
+- ST/REPT display hold, works like a meter hold with `[H]` indicator on screen
+- Power button toggles LCD on/off and now correctly stays in the current mode on restore
+- `0` always returns to menu and clears hold state so you can never get stuck
+- Menu restructured to 2 items per page on a 16x2 LCD — much more readable
+- Mode names updated: Eco Light (economy + ecological), Smart Home, Warning Light
+
+**What got fought along the way:**
+- Reversed LM35 destroyed the original bare sensor — replaced with a PCB module that enforces polarity. Lesson: always use the breakout board on analog temp sensors.
+- SD card logging looked easy until it ate ~900 bytes of RAM and caused random resets. Removed completely. The Uno simply doesn't have the headroom. Logging deferred to NodeMCU WiFi phase.
+- LED and LCD bars were out of sync on the sound mode because two separate `analogRead()` calls on the same pin return different values. Fixed with a single shared sample per loop.
+- The EQ button was silently ignored inside settings because the IR handler was accidentally nested inside an `else` block that didn't run when `inSettings` was true. Classic logic inversion bug — spotted via Serial Monitor output showing the command arriving but nothing happening.
+- Arduino IDE is functional but clunky for anything beyond a single-file sketch. Switched to Visual Studio Community 2026 with Arduino CLI for all editing and builds. Arduino IDE kept open on the side purely for its Serial Monitor.
+
+**Where it's going:**
+The Uno is basically feature-complete now. Hardware inventory check revealed a Mega 2560, two NodeMCU ESP8266 boards (on order), a BTT SKR Mini E3 stepper controller, and an Ender 3 v2 as a potential chassis donor. The long-term goal is a multi-board self-propelled platform — sensors and lighting on the Mega, WiFi logging via NodeMCU, motion via the SKR Mini. Think Howl's Moving Castle, Arduino edition.
+
+---
+
 ## Development Environment
 
 This project uses **Visual Studio Community 2026** with the Arduino extension rather than the Arduino IDE.

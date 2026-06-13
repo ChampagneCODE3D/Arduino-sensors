@@ -933,10 +933,6 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
-  if (inSettings) {
-    // IR handling still runs below; skip sensor/display updates
-    // fall through to IR section at end of loop
-  } else {
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
 	uint8_t  cmd  = IrReceiver.decodedIRData.command;
@@ -1081,16 +1077,15 @@ void loop() {
 		  Serial.println(cmd, HEX);
 		}
 	  }
-		}
-	  }
-	} // end !inSettings
-
-	if (!inSettings) {
-	applyMode(pirState, smoothedLightValue, soundValue);
-
-	if (lcdOn && !holdDisplay) {
-	  showModeOnLcd(smoothedLightValue, pirState, soundValue);
 	}
+  }
+
+  if (!inSettings) {
+	applyMode(pirState, smoothedLightValue, soundValue);
+  }
+
+  if (lcdOn && !holdDisplay) {
+	showModeOnLcd(smoothedLightValue, pirState, soundValue);
   }
 
   delay(150);
