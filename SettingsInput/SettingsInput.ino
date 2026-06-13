@@ -44,6 +44,17 @@ const int irPin = 2;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+byte sunChar[8] = {
+  B00100,
+  B10101,
+  B01110,
+  B11111,
+  B01110,
+  B10101,
+  B00100,
+  B00000
+};
+
 // -------------------------
 // STATE
 // -------------------------
@@ -187,15 +198,7 @@ float readTempC() {
   return analogRead(tempPin) * 0.48876f;
 }
 
-// GL5528 LDR + 10k pull-down resistor (5V->LDR->A0->10k->GND)
-// Calibrated for GL5528; adjust if using a different LDR model
-float rawToLux(int raw) {
-  if (raw <= 0) return 0.0f;
-  if (raw >= 1023) return 100000.0f;
-  float rLdr = 10000.0f * (1023.0f - raw) / raw;  // ohms
-  float rKohms = rLdr / 1000.0f;
-  return 255.0f / pow(rKohms, 1.4f);              // GL5528 curve approximation
-}
+// LDR is displayed as raw ADC (0-1023) with sun icon on LCD.
 
 // Map 15-35 deg C to 0-9 LEDs across human comfort range (green -> yellow -> red)
 void updateTempLedBar(float tempC) {
@@ -402,9 +405,11 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 
   if (lightValue != lastDisplayedLight || (int)currentMode != lastDisplayedMode) {
 	lcd.setCursor(0, 0);
-	lcd.print(F("Lux:            "));
-	lcd.setCursor(4, 0);
-	lcd.print((int)rawToLux(lightValue));
+	lcd.print(F("                "));
+	lcd.setCursor(0, 0);
+	lcd.write((uint8_t)0);
+	lcd.print(F(" "));
+	lcd.print(lightValue);
 	lcd.setCursor(10, 0);
 	lcd.print(cornerLabel);
 	lastDisplayedLight = lightValue;
@@ -925,6 +930,7 @@ void setup() {
   smoothedTempC = readTempC();  // seed with real reading so smoothing starts correct
 
   lcd.init();
+  lcd.createChar(0, sunChar);
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
@@ -956,7 +962,7 @@ void loop() {
   if (millis() - lastRawPrint > 2000) {
     lastRawPrint = millis();
     Serial.print(F("LDR raw: ")); Serial.print(lightValue);
-    Serial.print(F("  Lux: ")); Serial.println((int)rawToLux(lightValue));
+    Serial.print(F("  Raw: ")); Serial.println(lightValue);
   }
 
   if (IrReceiver.decode()) {

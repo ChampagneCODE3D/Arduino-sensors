@@ -44,6 +44,17 @@ const int irPin = 2;
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
+byte sunChar[8] = {
+  B00100,
+  B10101,
+  B01110,
+  B11111,
+  B01110,
+  B10101,
+  B00100,
+  B00000
+};
+
 // -------------------------
 // STATE
 // -------------------------
@@ -303,9 +314,9 @@ void showIdleMenu() {
 	  break;
 	case 5:
 	  lcd.setCursor(0, 0);
-	  lcd.print("Power ON/OFF");
+	  lcd.print("EQ Settings");
 	  lcd.setCursor(0, 1);
-	  lcd.print("LCD screen");
+	  lcd.print("PWR LCD");
 	  break;
   }
 }
@@ -384,12 +395,9 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	lcd.setCursor(0, 0);
 	lcd.print(F("                "));
 	lcd.setCursor(0, 0);
-	lcd.write((uint8_t)0);  // sun icon (CGRAM slot 0)
+	lcd.write((uint8_t)0);
 	lcd.print(F(" "));
-	int pct = map(lightValue, darkValue, brightValue, 0, 100);
-	pct = constrain(pct, 0, 100);
-	lcd.print(pct);
-	lcd.print(F("%"));
+	lcd.print(lightValue);
 	lcd.setCursor(10, 0);
 	lcd.print(cornerLabel);
 	lastDisplayedLight = lightValue;
@@ -993,6 +1001,7 @@ void loop() {
 		  ledsOff = false;
 		  setMode(MODE_IDLE);
 		  Serial.println(F("0 - Menu"));
+		  Serial.println(F("EQ=Settings PWR=LCD"));
 		} else if (cmd == CMD_POWER) {
 		  lcdOn = !lcdOn;
 		  if (lcdOn) {
