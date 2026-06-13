@@ -129,6 +129,7 @@ void allOn() {
 }
 
 void setLedCount(int count) {
+  if (ledsOff) return;
   count = constrain(count, 0, 9);
   for (int i = 0; i < 9; i++) {
 	digitalWrite(ledPins[i], (i < count) ? HIGH : LOW);
@@ -136,15 +137,17 @@ void setLedCount(int count) {
 }
 
 void greenOnly() {
+  if (ledsOff) return;
   allOff();
-  digitalWrite(ledPins[0], HIGH);  // Pin 5 = Green
-  digitalWrite(ledPins[1], HIGH);  // Pin 6 = Green
-  digitalWrite(ledPins[2], HIGH);  // Pin 7 = Green
+  digitalWrite(ledPins[0], HIGH);
+  digitalWrite(ledPins[1], HIGH);
+  digitalWrite(ledPins[2], HIGH);
 }
 
 // Collapse inward: step 0 = all 9 on, increasing step turns off
 // LEDs from both ends moving toward center (index 4).
 void collapseToMiddle(int step) {
+  if (ledsOff) return;
   step = constrain(step, 0, 5);
   for (int i = 0; i < 9; i++) {
     bool on = (i >= step) && (i <= 8 - step);
@@ -489,7 +492,6 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 }
 
 void applyMode(int pirState, int lightValue, int soundValue) {
-  if (ledsOff) { allOff(); return; }  // FUNC kill switch
 
   // Mode 3 special handling - switch statement not working for this case
   if (currentMode == MODE_STREETLIGHT) {
@@ -946,6 +948,14 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
+  // Temporary: print raw LDR value every 2s for lux calibration
+  static unsigned long lastRawPrint = 0;
+  if (millis() - lastRawPrint > 2000) {
+    lastRawPrint = millis();
+    Serial.print(F("LDR raw: ")); Serial.print(lightValue);
+    Serial.print(F("  Lux: ")); Serial.println((int)rawToLux(lightValue));
+  }
+
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
 	uint8_t  cmd  = IrReceiver.decodedIRData.command;
@@ -1126,8 +1136,14 @@ void loop() {
 		  } else {
 			// LED kill toggle
 			ledsOff = !ledsOff;
-			if (ledsOff) allOff();
-			else lastDisplayedMode = -1;
+			if (ledsOff) {
+			  allOff();
+			} else {
+			  // Re-enable immediately — don't wait for next loop tick
+			  int pir = digitalRead(pirPin);
+			  applyMode(pir, smoothedLightValue, analogRead(soundPin));
+			  lastDisplayedMode = -1;
+			}
 			Serial.println(ledsOff ? F("LEDs OFF") : F("LEDs ON"));
 		  }
 		} else {
