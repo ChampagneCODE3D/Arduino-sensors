@@ -86,6 +86,7 @@ unsigned long roomLightLastMotionTime = 0;
 const int tempPin = A2;
 const int soundPin = A1;  // DFR0034 sound sensor
 const int uvPin    = A3;  // GUVA-S12SD UV sensor
+#define UV_RAW_MAX 100  // Calibrated: raw=25 = full sun through window; adjust after outdoor test
 int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
 bool lcdOn = true;         // LCD backlight/display toggle
 bool holdDisplay = false;  // ST/REPT freezes LCD readout like a meter hold
@@ -363,11 +364,13 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	  lcd.setCursor(0, 0);
 	  lcd.print(F("                "));
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("Level:"));
-	  lcd.print(raw);
+	  lcd.print(F("UV: "));
+	  int pct = constrain((int)((long)raw * 100 / UV_RAW_MAX), 0, 100);
+	  lcd.print(pct);
+	  lcd.print(F("%"));
 	  lcd.setCursor(10, 0);
 	  lcd.print(cornerLabel);
-	  int bars = map(raw, 0, 1023, 0, 16);
+	  int bars = map(raw, 0, UV_RAW_MAX, 0, 16);
 	  bars = constrain(bars, 0, 16);
 	  lcd.setCursor(0, 1);
 	  for (int i = 0; i < 16; i++) {
@@ -780,7 +783,7 @@ void applyMode(int pirState, int lightValue, int soundValue) {
   // Mode 9: UV index bar - GUVA-S12SD on A3
   if (currentMode == MODE_UV_INDEX) {
     int raw = analogRead(uvPin);
-    int count = map(raw, 0, 1023, 0, 9);
+    int count = map(raw, 0, UV_RAW_MAX, 0, 9);
     count = constrain(count, 0, 9);
     setLedCount(count);
     return;
