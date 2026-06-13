@@ -1024,10 +1024,11 @@ void loop() {
 		  Serial.println(cmd, HEX);
 		}
 	  }
-	}
-  } // end !inSettings
+		}
+	  }
+	} // end !inSettings
 
-  if (!inSettings) {
+	if (!inSettings) {
 	applyMode(pirState, smoothedLightValue, soundValue);
 
 	if (lcdOn) {

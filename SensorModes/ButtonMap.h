@@ -65,7 +65,7 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_SMART_ROOM_LIGHT:    return "Room Light";
 		case MODE_HALLWAY_LIGHT:       return "Hallway";
 		case MODE_STREETLIGHT:         return "Streetlight";
-		case MODE_ENERGY_SAVING_ROOM:  return "Energy Save";
+		case MODE_ENERGY_SAVING_ROOM:  return "Efficient";
 		case MODE_SMART_HOME_LIGHTING: return "Smart Home";
 		case MODE_NIGHT_WARNING:       return "Warning Light";
 		case MODE_TEMPERATURE:         return "Temperature";
@@ -95,7 +95,7 @@ inline const char* getModeDescription(ProgramMode mode) {
 		case MODE_SMART_ROOM_LIGHT:    return "PIR+LDR dim bar";
 		case MODE_HALLWAY_LIGHT:       return "Fade hallway";
 		case MODE_STREETLIGHT:         return "Fade street";
-		case MODE_ENERGY_SAVING_ROOM:  return "Save energy";
+		case MODE_ENERGY_SAVING_ROOM:  return "Adaptive LED save";
 		case MODE_SMART_HOME_LIGHTING: return "Progressive";
 		case MODE_NIGHT_WARNING:       return "Warning fade";
 		case MODE_TEMPERATURE:         return "fw/rv=unit pair";
