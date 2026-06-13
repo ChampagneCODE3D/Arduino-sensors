@@ -19,9 +19,17 @@
     <None Include="RemoteButtonMapper.ino" />
     <None Include="RemoteButtonMapper\RemoteButtonMapper.ino" />
     <None Include="GuidedButtonMapper\GuidedButtonMapper.ino" />
+    <None Include="SDButtonLogger\SDButtonLogger.ino" />
+    <None Include="ModeSwitching\ModeSwitching.ino" />
+    <None Include=".gitignore" />
+    <None Include="README.md" />
+    <None Include="RawCodeTest\RawCodeTest.ino" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ModeSwitching\ButtonMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

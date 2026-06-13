@@ -139,13 +139,19 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include=".gitignore" />
     <None Include="ArduinoSensorsLdrLcd.ino" />
     <None Include="GuidedButtonMapper\GuidedButtonMapper.ino" />
+    <None Include="ModeSwitching\ModeSwitching.ino" />
+    <None Include="RawCodeTest\RawCodeTest.ino" />
+    <None Include="README.md" />
     <None Include="RemoteButtonMapper.ino" />
     <None Include="RemoteButtonMapper\RemoteButtonMapper.ino" />
+    <None Include="SDButtonLogger\SDButtonLogger.ino" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h" />
+    <ClInclude Include="ModeSwitching\ButtonMap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

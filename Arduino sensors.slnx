@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="Arduino sensors.vcxproj" />
+  <Project Path="Arduino sensors.vcxproj" Id="8c03cb9f-7d74-4f76-b3fa-736e640aed3e" />
 </Solution>
