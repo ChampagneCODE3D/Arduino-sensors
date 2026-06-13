@@ -21,8 +21,12 @@
 
 // Command codes (verified via RawCodeTest logger)
 #define CMD_POWER   0x00
+#define CMD_VOLUP   0x01
+#define CMD_FUNC    0x02
 #define CMD_FORWARD 0x06
 #define CMD_REVERSE 0x04
+#define CMD_PLAY    0x05
+#define CMD_VOLDN   0x09
 #define CMD_0       0x0C
 #define CMD_EQ      0x0D
 #define CMD_STREPT  0x0E

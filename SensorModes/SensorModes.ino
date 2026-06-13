@@ -89,8 +89,10 @@ const int uvPin    = A3;  // GUVA-S12SD UV sensor
 int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
 bool lcdOn = true;         // LCD backlight/display toggle
 bool holdDisplay = false;  // ST/REPT freezes LCD readout like a meter hold
+bool ledsOff = false;      // FUNC kills LED output without leaving mode
 bool inSettings = false;   // EQ settings menu active
 int settingsParam = 0;     // 0 = brightValue, 1 = darkValue
+int soundCeiling = 250;    // Sound bar top of scale (VOL+/- adjusts)
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -307,7 +309,7 @@ void showIdleMenu() {
 void showModeOnLcd(int lightValue, int pirState, int soundValue) {
   lcd.backlight();
   // Corner label shows [H] when display is frozen, normal label otherwise
-  const char* cornerLabel = holdDisplay ? "[H] " : getModeCornerLabel(currentMode);
+  const char* cornerLabel = ledsOff ? "[X] " : holdDisplay ? "[H] " : getModeCornerLabel(currentMode);
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
@@ -331,7 +333,7 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	  lcd.print(raw);
 	  lcd.setCursor(10, 0);
 	  lcd.print(cornerLabel);
-	  int bars = map(raw, 0, 250, 0, 16);
+	  int bars = map(raw, 0, soundCeiling, 0, 16);
 	  bars = constrain(bars, 1, 16);
 	  lcd.setCursor(0, 1);
 	  for (int i = 0; i < 16; i++) {
@@ -468,6 +470,7 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 }
 
 void applyMode(int pirState, int lightValue, int soundValue) {
+  if (ledsOff) { allOff(); return; }  // FUNC kill switch
 
   // Mode 3 special handling - switch statement not working for this case
   if (currentMode == MODE_STREETLIGHT) {
@@ -762,7 +765,7 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 
   // Mode 9: Sound bar - peak-hold LED bar responding to mic level
   if (currentMode == MODE_SOUND_BAR) {
-    int count = map(soundValue, 0, 250, 0, 9);
+    int count = map(soundValue, 0, soundCeiling, 0, 9);
     count = constrain(count, 1, 9);
     setLedCount(count);
     return;
@@ -977,6 +980,7 @@ void loop() {
 		} else if (cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
+		  ledsOff = false;
 		  setMode(MODE_IDLE);
 		  Serial.println(F("0 - Menu"));
 		} else if (cmd == CMD_POWER) {
@@ -1028,8 +1032,34 @@ void loop() {
 		  Serial.println(getModeLabel(currentMode));
 		} else if (cmd == CMD_STREPT) {
 		  holdDisplay = !holdDisplay;
-		  if (!holdDisplay) lastDisplayedMode = -1;  // force redraw on unfreeze
+		  if (!holdDisplay) lastDisplayedMode = -1;
 		  Serial.println(holdDisplay ? F("Hold ON") : F("Hold OFF"));
+		} else if (cmd == CMD_PLAY) {
+		  ledsOff = false;
+		  holdDisplay = false;
+		  setMode(currentMode);
+		  Serial.println(F("Mode reset"));
+		} else if (cmd == CMD_VOLUP) {
+		  if (currentMode == MODE_SOUND_BAR) {
+			soundCeiling = min(soundCeiling + 25, 1023);
+			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
+		  } else {
+			brightValue = min(brightValue + 10, 1023);
+			Serial.print(F("Bright:")); Serial.println(brightValue);
+		  }
+		} else if (cmd == CMD_VOLDN) {
+		  if (currentMode == MODE_SOUND_BAR) {
+			soundCeiling = max(soundCeiling - 25, 25);
+			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
+		  } else {
+			brightValue = max(brightValue - 10, 0);
+			Serial.print(F("Bright:")); Serial.println(brightValue);
+		  }
+		} else if (cmd == CMD_FUNC) {
+		  ledsOff = !ledsOff;
+		  if (ledsOff) allOff();
+		  else lastDisplayedMode = -1;
+		  Serial.println(ledsOff ? F("LEDs OFF") : F("LEDs ON"));
 		} else {
 		  Serial.print(F("Ignored CMD: 0x"));
 		  Serial.println(cmd, HEX);
