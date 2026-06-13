@@ -88,6 +88,8 @@ const int soundPin = A1;  // DFR0034 sound sensor
 const int uvPin    = A3;  // GUVA-S12SD UV sensor
 int lastDisplayedUV = -1;  // For Mode 9 LCD refresh
 bool lcdOn = true;         // LCD backlight/display toggle
+bool inSettings = false;   // EQ settings menu active
+int settingsParam = 0;     // 0 = brightValue, 1 = darkValue
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -224,6 +226,27 @@ void showTempOnLcd() {
   lcd.setCursor(0, 1);
   lcd.print(F("Temp  "));
   lcd.print(getTempPairLabel(tempUnitPair));
+}
+
+void showSettingsLcd() {
+  lcd.setCursor(0, 0);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 0);
+  if (settingsParam == 0) {
+    lcd.print(F(">Bright: "));
+    lcd.print(brightValue);
+    lcd.setCursor(0, 1);
+    lcd.print(F(" Dark:   "));
+    lcd.print(darkValue);
+  } else {
+    lcd.print(F(" Bright: "));
+    lcd.print(brightValue);
+    lcd.setCursor(0, 1);
+    lcd.print(F(">Dark:   "));
+    lcd.print(darkValue);
+  }
 }
 
 void showIdleMenu() {
@@ -895,6 +918,10 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
+  if (inSettings) {
+    // IR handling still runs below; skip sensor/display updates
+    // fall through to IR section at end of loop
+  } else {
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
 	uint8_t  cmd  = IrReceiver.decodedIRData.command;
@@ -915,7 +942,33 @@ void loop() {
 		  return;
 		}
 
-		if (cmd == CMD_0) {
+		if (cmd == CMD_EQ) {
+		  inSettings = !inSettings;
+		  if (inSettings) {
+			settingsParam = 0;
+			showSettingsLcd();
+			Serial.println(F("Settings menu"));
+		  } else {
+			setMode(currentMode);
+			Serial.println(F("Settings exit"));
+		  }
+		} else if (inSettings && cmd == CMD_UP) {
+		  if (settingsParam == 0) { brightValue = min(brightValue + 10, 1023); }
+		  else                    { darkValue   = max(darkValue   - 10, 0);    }
+		  showSettingsLcd();
+		  Serial.print(F("Bright:")); Serial.print(brightValue);
+		  Serial.print(F(" Dark:")); Serial.println(darkValue);
+		} else if (inSettings && cmd == CMD_DOWN) {
+		  if (settingsParam == 0) { brightValue = max(brightValue - 10, 0);    }
+		  else                    { darkValue   = min(darkValue   + 10, 1023); }
+		  showSettingsLcd();
+		  Serial.print(F("Bright:")); Serial.print(brightValue);
+		  Serial.print(F(" Dark:")); Serial.println(darkValue);
+		} else if (inSettings && cmd == CMD_FORWARD) {
+		  settingsParam = 1; showSettingsLcd();
+		} else if (inSettings && cmd == CMD_REVERSE) {
+		  settingsParam = 0; showSettingsLcd();
+		} else if (cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  setMode(MODE_IDLE);
 		  Serial.println(F("0 - Menu"));
@@ -972,12 +1025,14 @@ void loop() {
 		}
 	  }
 	}
-  }
+  } // end !inSettings
 
-  applyMode(pirState, smoothedLightValue, soundValue);
+  if (!inSettings) {
+	applyMode(pirState, smoothedLightValue, soundValue);
 
-  if (lcdOn) {
-    showModeOnLcd(smoothedLightValue, pirState, soundValue);
+	if (lcdOn) {
+	  showModeOnLcd(smoothedLightValue, pirState, soundValue);
+	}
   }
 
   delay(150);
