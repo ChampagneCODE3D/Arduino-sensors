@@ -183,7 +183,9 @@ float readTempC() {
 
 // Map 15-35 deg C to 0-9 LEDs across human comfort range (green -> yellow -> red)
 void updateTempLedBar(float tempC) {
-  int count = (int)((tempC - 15.0f) / 20.0f * 9.0f);
+  // Scale: 0C = 0 LEDs, 30C = 9 LEDs
+  // 19C -> ~6 LEDs (into yellow), 25C -> 8 LEDs (warm/red)
+  int count = (int)(tempC / 30.0f * 9.0f);
   count = constrain(count, 0, 9);
   setLedCount(count);
 }
