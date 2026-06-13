@@ -1,6 +1,7 @@
 # Arduino Sensors Project
 
-Multi-mode sensor controller built on Arduino Uno R3 (DFRduino clone) using Arduino CLI + Visual Studio.
+Multi-mode sensor controller built on Arduino Uno R3 (DFRduino clone) using Arduino CLI + Visual Studio.  
+Part of a larger multi-board robotics and home automation platform — see **Hardware Inventory** and **Project Roadmap** below.
 
 ## Author
 
@@ -13,7 +14,7 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 
 ## Active Sketch
 
-`SensorModes/SensorModes.ino` — 8-mode sensor controller (experimental branch)  
+`SensorModes/SensorModes.ino` — 9-mode sensor controller (experimental branch)  
 `SensorModes/ButtonMap.h` — IR remote command map and mode definitions  
 `ModeSwitching/ModeSwitching.ino` — Stable 6-mode lighting baseline (master branch, do not modify)
 
@@ -21,6 +22,7 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 
 ## Hardware
 
+### Current Build (Uno)
 - Arduino Uno R3 clone (DFRduino)
 - Keyestudio 16x2 I2C LCD (0x27)
 - PIR motion sensor (D4)
@@ -29,7 +31,26 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 - 9x LED bar (D5–D12, D3) — Green: D5–D7, Yellow: D8–D10, Red: D11, D12, D3
 - LM35 temperature sensor on PCB module (A2)
 - DFRobot sound/mic sensor DFR0034 (A1)
-- GUVA-S12SD UV sensor (A3) — Mode 9 (pending)
+- GUVA-S12SD UV sensor (A3) — Mode 9 (pending daylight calibration)
+
+### Full Hardware Inventory
+| Board | Status | Planned Role |
+|-------|--------|--------------|
+| Arduino Uno R3 (DFRduino) | Active | Sensor controller — current project |
+| Arduino Mega 2560 + shield | Ready | Expanded I/O — port from Uno when done |
+| Arduino Uno R4 WiFi | Boxed | Future — onboard LED matrix + WiFi/BT |
+| Arduino Uno R4 (non-WiFi) | Available | Spare / comparison |
+| NodeMCU ESP8266 + OLED ×2 | On order | WiFi logger + robot chauffeur controller |
+| BTT SKR Mini E3 (never flashed) | Ready | Stepper motion controller for robot chassis |
+| Ender 3 v2 frame + steppers | Available | Robot chassis donor / repurpose |
+| Original Ender 3 motherboard | SD failed | Recoverable via BOOT0 pin + DFU flash |
+
+### Peripherals Available
+- DHT11 or DHT22 temp/humidity sensor (3-wire, D13 on Uno)
+- Stepper motor driver (ULN2003 or similar — pending ID)
+- Blue cube relay (bare component — requires NPN transistor + flyback diode)
+- Servo expansion shield (on Mega — separate power rail for actuators)
+- HC-SR04 ultrasonic sensor (Mega kit — obstacle avoidance)
 
 ---
 
@@ -112,6 +133,69 @@ Verified via RawCodeTest logger (NEC protocol, address 0xBF00):
 ## Notes
 
 - A4/A5 reserved for I2C LCD.
-- SD card logging was removed to stabilize RAM (was causing bus conflicts on Uno).
-- RAM usage: ~56% / Flash: ~62% on current build.
+- SD card logging removed from Uno build to stabilize RAM (bus conflicts + insufficient RAM for 512-byte sector buffer).
+- RAM: ~60% / Flash: ~66% on current build — no headroom for SD on Uno.
 - Part of the larger Modular Multi Node Smart Environment System project (MSCWOW).
+
+---
+
+## Project Roadmap
+
+### Phase 1 — Uno Polish (current)
+- [x] 9 sensor modes working
+- [x] EQ settings menu (brightValue / darkValue)
+- [x] LCD power toggle, 0 = menu
+- [ ] EEPROM save/load for settings (survives power off)
+- [ ] Direct number entry in settings menu via IR keypad
+- [ ] UV sensor daylight calibration (Mode 9)
+
+### Phase 2 — Mega Expansion
+- [ ] Port SensorModes sketch to Mega (repin assignments)
+- [ ] Add DHT11/22 — replace LM35 with temp + humidity on one pin
+- [ ] Add relay (D13 equivalent) — temperature-triggered fan/actuator
+- [ ] Add HC-SR04 ultrasonic — proximity / obstacle awareness
+- [ ] Add stepper motor control (freed pins from shift register or direct Mega pins)
+- [ ] EEPROM settings persist (same code, same EEPROM API on Mega)
+
+### Phase 3 — NodeMCU WiFi Logger
+> NodeMCU ESP8266 boards with onboard OLED (×2) — on order
+
+- [ ] Flash NodeMCU with WiFi serial receiver sketch
+- [ ] Uno TX → NodeMCU RX (via 5V→3.3V voltage divider: 10kΩ + 20kΩ)
+- [ ] Uno sends CSV sensor lines over Serial at each mode-display update
+- [ ] NodeMCU stores to 4MB flash and/or serves live dashboard over WiFi
+- [ ] Access sensor history in browser on phone, no PC required
+
+### Phase 4 — Robot Chassis (Howl's Moving Castle concept)
+> Inspired by the Howl's Moving Castle aesthetic — a self-propelled multi-board platform
+
+**Architecture:**
+```
+BTT SKR Mini E3     →  4-axis stepper locomotion (TMC2209, silent StealthChop)
+Arduino Mega        →  sensors, LED lighting modes, environment awareness
+NodeMCU #1          →  WiFi web remote / autonomous nav logic
+NodeMCU #2          →  live sensor telemetry dashboard
+```
+
+**Chauffeur module concept (Nano + NodeMCU stack):**
+```
+Phone / Browser  →  WiFi  →  NodeMCU  →  Serial  →  Arduino Nano  →  Motors / Servos
+                                                                    ←  Sensor feedback
+```
+- Arduino Nano handles real-time motor and servo control (fast loop, no WiFi overhead)
+- NodeMCU handles WiFi command reception and path logic
+- Small enough to fit on any chassis — piggybacked as a self-contained drive module
+- 3.3V logic level shifter required on NodeMCU RX line from Nano TX
+
+**Chassis donor:** Ender 3 v2 frame + steppers (repurposed)  
+**Motion controller:** BTT SKR Mini E3 v3 (never flashed — ready for Klipper or Marlin)  
+**Sensorless homing:** TMC2209 StallGuard — no limit switches needed for leg/axis homing
+
+**Still needed:**
+- DC gear motors or additional steppers for drive wheels
+- L298N or similar motor driver for drive wheels
+- LiPo or 18650 battery pack for portable power
+- Buck converter (battery voltage → 5V logic)
+- Chassis frame (3D printed from Ender 3, laser cut, or scratch built)
+
+---
