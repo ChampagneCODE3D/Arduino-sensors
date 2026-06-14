@@ -7,9 +7,7 @@ Private planning document. Do not make repo public while this file exists.
 ## In Progress
 
 - [ ] Finish testing SettingsInput on hardware (EQ, number entry, VOL+/-, FUNC)
-- [ ] Get raw LDR values under bright lamp to calibrate lux formula
-- [ ] Confirm LDR is GL5528 or identify actual part number
-- [ ] Remove temporary raw LDR debug print from loop() once lux is calibrated
+- [ ] Confirm LDR part number (likely GL5528) for general hardware docs
 - [ ] Commit and push ledsOff background state machine fix
 - [ ] Merge SettingsInput into SensorModes once validated
 - [ ] Add 2/4 page indicator to temp mode LCD
@@ -70,7 +68,7 @@ Private planning document. Do not make repo public while this file exists.
 - [ ] Wire Uno TX → NodeMCU RX (10k+20k voltage divider)
 - [ ] Uno sends CSV sensor data over Serial
 - [ ] NodeMCU serves live dashboard in browser
-- [ ] Log temp, sound, lux over time
+- [ ] Log temp, sound, light level over time
 
 ---
 
@@ -91,4 +89,3 @@ Private planning document. Do not make repo public while this file exists.
 - Flash: 74% used — ~8KB remaining
 - All new modes estimated ~120 bytes RAM total — fits comfortably
 - Jump game sprites go in PROGMEM (flash) not RAM — custom chars in LCD CGRAM
-- Lux formula assumes GL5528 + 10k pull-down — verify LDR model before publishing calibration

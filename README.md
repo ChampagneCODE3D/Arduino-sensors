@@ -37,7 +37,7 @@ Pushed hard this session — everything from completing the 21-button IR map to 
 - `allOff()` needed to still fire when FUNC first kills LEDs, but be gated during normal mode runs — solved by keeping `allOff()` ungated and gating only the output helpers that modes call during normal operation
 
 **Where it's going:**
-TODO.md has the full list. Next priorities are finishing hardware testing of SettingsInput, calibrating lux against a known light source, and starting the first multi-sensor combo mode (Comfort Index). Long term the whole thing ports to the Mega and eventually drives a self-propelled platform — the Howl's Moving Castle build.
+TODO.md has the full list. Next priorities are finishing hardware testing of SettingsInput and starting the first multi-sensor combo mode (Comfort Index).
 
 ### June 2026 — Sensor Modes & UI Complete
 

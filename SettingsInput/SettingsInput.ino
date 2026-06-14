@@ -963,13 +963,6 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
-  // Optional raw debug print (every 2s)
-  static unsigned long lastRawPrint = 0;
-  if (millis() - lastRawPrint > 2000) {
-    lastRawPrint = millis();
-    Serial.print(F("Raw: ")); Serial.println(lightValue);
-  }
-
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
 	uint8_t  cmd  = IrReceiver.decodedIRData.command;
