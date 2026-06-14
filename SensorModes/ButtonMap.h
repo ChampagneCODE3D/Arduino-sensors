@@ -54,7 +54,9 @@ enum ProgramMode {
     MODE_SOUND_BAR           = 8,  // Mode 8: Sound level bar (DFR0034 on A1)
     MODE_UV_INDEX            = 9,  // Mode 9: UV index (GUVA-S12SD on A3)
     MODE_DICE                = 10,  // Mode 10: Custom dice d2-d1000 (FWD from Mode 9)
-    MODE_TRACK               = 11  // Mode 11: Sensor logger, CSV to Serial (FWD from Dice)
+    MODE_TRACK               = 11,  // Mode 11: Sensor logger, CSV to Serial (FWD from Dice)
+    MODE_MANUAL_TEST         = 12,  // Mode 12: LED FX/test (FWD from Track)
+    MODE_SERIAL_MSG          = 13   // Mode 13: Serial->LCD message mode (FWD from LED FX)
 };
 
 // Temperature unit pair sub-modes for Mode 7
@@ -80,6 +82,8 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_UV_INDEX:            return "UV Index";
 		case MODE_DICE:                return "Dice Roller";
 		case MODE_TRACK:               return "Track Logger";
+		case MODE_MANUAL_TEST:         return "LED FX";
+		case MODE_SERIAL_MSG:          return "Serial Msg";
 		default:                       return "Idle";
 	}
 }
@@ -112,6 +116,8 @@ inline const char* getModeDescription(ProgramMode mode) {
 		case MODE_UV_INDEX:            return "UV level bar";
 		case MODE_DICE:                return "d2-d1000 PLAY=roll";
 		case MODE_TRACK:               return "CSV>Serial PLAY=rec";
+		case MODE_MANUAL_TEST:         return "LED FX controls";
+		case MODE_SERIAL_MSG:          return "Serial -> LCD";
 		default:                       return "Select 1-9";
 	}
 }
@@ -129,6 +135,8 @@ inline const char* getModeCornerLabel(ProgramMode mode) {
 	case MODE_UV_INDEX:            return "UV";
 	case MODE_DICE:                return "Dice";
 	case MODE_TRACK:               return "Track";
+	case MODE_MANUAL_TEST:         return "FX";
+	case MODE_SERIAL_MSG:          return "Msg";
 	default:                       return "";
 
   }
