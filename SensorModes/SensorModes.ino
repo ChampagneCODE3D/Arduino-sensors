@@ -37,7 +37,7 @@
 // PIN SETUP
 // -------------------------
 
-int ledPins[9] = {5, 6, 7, 8, 9, 10, 11, 12, 3};  // Green: D5-D7, Yellow: D8-D10, Red: D11, D12, D3
+const uint8_t ledPins[9] = {5, 6, 7, 8, 9, 10, 11, 12, 3};  // Green: D5-D7, Yellow: D8-D10, Red: D11, D12, D3
 const int pirPin = 4;
 const int ldrPin = A0;
 const int irPin = 2;
@@ -60,8 +60,11 @@ byte sunChar[8] = {
 // -------------------------
 
 ProgramMode currentMode = MODE_IDLE;
-int darkValue = 77;
-int brightValue = 800;
+const int DEFAULT_BRIGHT     = 800;
+const int DEFAULT_DARK       = 77;
+const int DEFAULT_SOUND_CEIL = 250;
+int darkValue  = DEFAULT_DARK;
+int brightValue = DEFAULT_BRIGHT;
 int smoothedLightValue = 0;
 int lastBarLevel = -1;
 int lastRawLightValue = -1;
@@ -105,12 +108,7 @@ bool holdDisplay = false;  // ST/REPT freezes LCD readout like a meter hold
 bool ledsOff = false;      // FUNC kills LED output without leaving mode
 bool inSettings = false;   // EQ settings menu active
 int settingsParam = 0;     // 0 = brightValue, 1 = darkValue
-int soundCeiling = 250;    // Sound bar top of scale (VOL+/- adjusts)
-
-// Number entry state
-bool inNumEntry = false;   // currently typing a number
-char numBuf[5];            // digit buffer e.g. "1023\0"
-uint8_t numLen = 0;        // digits typed so far
+int soundCeiling = DEFAULT_SOUND_CEIL;  // Sound bar top of scale (VOL+/- adjusts)
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -124,6 +122,30 @@ int lastPirStateMode3 = -1;  // For Mode 3 change detection
 int lastStreetStateMode3 = -1;  // For Mode 3 change detection
 unsigned long streetLightLastMotionTime = 0;  // For Mode 3 UI countdown (always runs)
 int lastDisplayedSound = -1;  // For Mode 8 LCD refresh
+
+// -------------------------
+// DICE ROLLER STATE
+// (Mode 10)
+// -------------------------
+const uint16_t dndPresets[] PROGMEM = {2, 4, 6, 8, 10, 12, 20, 100};
+const uint8_t  dndPresetCount = 8;
+uint16_t diceSides  = 20;      // Current die size (2-1000)
+uint16_t diceResult = 0;       // Last roll result (0 = not yet rolled)
+enum DiceState : uint8_t { DICE_SELECT, DICE_ROLLING, DICE_RESULT };
+DiceState diceState = DICE_SELECT;
+unsigned long diceRollStart = 0;
+bool     diceNumEntry = false; // User is typing a custom die size
+char     diceNumBuf[5];        // "1000\0"
+uint8_t  diceNumLen   = 0;
+
+// -------------------------
+// TRACK LOGGER STATE
+// (Mode 11)
+// -------------------------
+bool      trackRunning   = false;  // actively logging
+uint32_t  trackSampleNum = 0;      // row counter
+unsigned long trackLastSample = 0; // last sample timestamp (ms)
+#define TRACK_INTERVAL_MS 1000     // one reading per second
 
 // -------------------------
 // HELPERS
@@ -156,6 +178,42 @@ void greenOnly() {
   digitalWrite(ledPins[1], HIGH);
   digitalWrite(ledPins[2], HIGH);
 }
+
+// ---- Dice helpers ----
+void diceNextPreset() {
+  for (uint8_t i = 0; i < dndPresetCount; i++) {
+    uint16_t p = pgm_read_word(&dndPresets[i]);
+    if (p > diceSides) { diceSides = p; return; }
+  }
+  diceSides = pgm_read_word(&dndPresets[0]);  // wrap to d2
+}
+void dicePrevPreset() {
+  for (int8_t i = dndPresetCount - 1; i >= 0; i--) {
+    uint16_t p = pgm_read_word(&dndPresets[i]);
+    if (p < diceSides) { diceSides = p; return; }
+  }
+  diceSides = pgm_read_word(&dndPresets[dndPresetCount - 1]);  // wrap to d100
+}
+// ----------------------
+
+void showTrackLcd() {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  if (!trackRunning) {
+    lcd.print(F("Track  [stopped]"));
+    lcd.setCursor(0, 1);
+    lcd.print(F("PLAY=start  Track"));
+  } else {
+    lcd.print(F("Track  #"));
+    lcd.print(trackSampleNum);
+    lcd.setCursor(10, 0);
+    lcd.print(F("[REC]"));
+    lcd.setCursor(0, 1);
+    lcd.print(F("PLAY=stop"));
+  }
+}
+
+// ----------------------
 
 // Collapse inward: step 0 = all 9 on, increasing step turns off
 // LEDs from both ends moving toward center (index 4).
@@ -264,12 +322,21 @@ void showSettingsLcd() {
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
 
-  if (inNumEntry) {
-    lcd.print(settingsParam == 0 ? F(">Bright: ") : F(">Dark:   "));
-    lcd.print(numBuf);
-    lcd.print('_');
-    lcd.setCursor(0, 1);
-    lcd.print(F("EQ=ok"));
+  if (currentMode == MODE_SOUND_BAR) {
+    // Sound Bar: param 0 = SndCeil, param 1 = Bright
+    if (settingsParam == 0) {
+      lcd.print(F(">SndCeil:"));
+      lcd.print(soundCeiling);
+      lcd.setCursor(0, 1);
+      lcd.print(F(" Bright: "));
+      lcd.print(brightValue);
+    } else {
+      lcd.print(F(" SndCeil:"));
+      lcd.print(soundCeiling);
+      lcd.setCursor(0, 1);
+      lcd.print(F(">Bright: "));
+      lcd.print(brightValue);
+    }
   } else if (settingsParam == 0) {
     lcd.print(F(">Bright: "));
     lcd.print(brightValue);
@@ -285,8 +352,58 @@ void showSettingsLcd() {
   }
 }
 
+// ---- Dice LCD ----
+void showDiceLcd() {
+  static DiceState lastDState  = (DiceState)255;
+  static uint16_t  lastDResult = 65535;
+  static uint16_t  lastDSides  = 65535;
+  static bool      lastDNum    = false;
+
+  bool changed = (diceState    != lastDState  ||
+                  diceResult   != lastDResult ||
+                  diceSides    != lastDSides  ||
+                  diceNumEntry != lastDNum);
+  if (!changed) return;
+  lastDState  = diceState;
+  lastDResult = diceResult;
+  lastDSides  = diceSides;
+  lastDNum    = diceNumEntry;
+
+  lcd.setCursor(0, 0);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 0);
+
+  if (diceState == DICE_ROLLING) {
+    lcd.print(F("Rolling d"));
+    lcd.print(diceSides);
+    lcd.print(F("..."));
+  } else if (diceState == DICE_RESULT) {
+    lcd.print(F("d"));
+    lcd.print(diceSides);
+    lcd.setCursor(7, 0);
+    lcd.print(F("=> "));
+    lcd.print(diceResult);
+    lcd.setCursor(0, 1);
+    lcd.print(F("PLAY=reroll"));
+  } else {
+    // DICE_SELECT
+    lcd.print(F("> d"));
+    if (diceNumEntry) {
+      lcd.print(diceNumBuf);
+      lcd.print(F("_"));
+    } else {
+      lcd.print(diceSides);
+    }
+    lcd.setCursor(0, 1);
+    lcd.print(F("PLAY=roll"));
+  }
+}
+// ------------------
+
 void showIdleMenu() {
-  int page = (millis() / 2500) % 7;
+  int page = (millis() / 2500) % 9;
   if (page == lastMenuPage) {
 	return;
   }
@@ -297,45 +414,57 @@ void showIdleMenu() {
   switch (page) {
 	case 0:
 	  lcd.setCursor(0, 0);
-	  lcd.print("0 Menu");
+	  lcd.print(F("0 Menu"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("1 Room Light");
+	  lcd.print(F("1 Room Light"));
 	  break;
 	case 1:
 	  lcd.setCursor(0, 0);
-	  lcd.print("2 Hallway");
+	  lcd.print(F("2 Hallway"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("3 Streetlight");
+	  lcd.print(F("3 Streetlight"));
 	  break;
 	case 2:
 	  lcd.setCursor(0, 0);
-	  lcd.print("4 Energy Save");
+	  lcd.print(F("4 Eco Mode"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("5 Smart Home");
+	  lcd.print(F("5 Smart Home"));
 	  break;
 	case 3:
 	  lcd.setCursor(0, 0);
-	  lcd.print("6 Warning Light");
+	  lcd.print(F("6 Warning Light"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("7 Temperature");
+	  lcd.print(F("7 Temperature"));
 	  break;
 	case 4:
 	  lcd.setCursor(0, 0);
-	  lcd.print("8 Sound Bar");
+	  lcd.print(F("8 Sound Bar"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("9 UV Index");
+	  lcd.print(F("9 UV Index"));
 	  break;
 	case 5:
 	  lcd.setCursor(0, 0);
-	  lcd.print("EQ=Settings");
+	  lcd.print(F("EQ=Settings"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("PWR=LCD");
+	  lcd.print(F("Up/Dn=adjust"));
 	  break;
 	case 6:
 	  lcd.setCursor(0, 0);
-	  lcd.print("FUNC=LED toggle");
+	  lcd.print(F("Fwd/Rev=param"));
 	  lcd.setCursor(0, 1);
-	  lcd.print("ST/REPT=Hold");
+	  lcd.print(F("FUNC=defaults"));
+	  break;
+	case 7:
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("FUNC=LEDs"));
+	  lcd.setCursor(0, 1);
+	  lcd.print(F("ST/REPT=Hold"));
+	  break;
+	case 8:
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("PLAY=Dice"));
+	  lcd.setCursor(0, 1);
+	  lcd.print(F("VOL+=Track"));
 	  break;
   }
 }
@@ -348,6 +477,16 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
+	return;
+  }
+
+  if (currentMode == MODE_DICE) {
+	showDiceLcd();
+	return;
+  }
+
+  if (currentMode == MODE_TRACK) {
+	showTrackLcd();
 	return;
   }
 
@@ -488,17 +627,17 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 
   if (currentPresence != lastDisplayedPresence || secondsRemaining != lastSecondsRemaining || (secondsRemaining == 0 && lastSecondsRemaining > 0)) {
 	lcd.setCursor(0, 1);
-	lcd.print("                ");
+	lcd.print(F("                "));
 	lcd.setCursor(0, 1);
 
 	if (currentPresence) {
-	  lcd.print("Occupied");
+	  lcd.print(F("Occupied"));
 	} else if (showCountdown && secondsRemaining > 0) {
-	  lcd.print("Vacant in ");
+	  lcd.print(F("Vacant in "));
 	  lcd.print(secondsRemaining);
-	  lcd.print("s");
+	  lcd.print(F("s"));
 	} else {
-	  lcd.print("Vacant");
+	  lcd.print(F("Vacant"));
 	}
 	lastDisplayedPresence = currentPresence;
 	lastSecondsRemaining = secondsRemaining;
@@ -815,6 +954,61 @@ void applyMode(int pirState, int lightValue, int soundValue) {
     return;
   }
 
+  // Mode 10: Dice roller - LED bar shows roll result percentage
+  if (currentMode == MODE_DICE) {
+    if (diceState == DICE_ROLLING) {
+      unsigned long elapsed = millis() - diceRollStart;
+      if (elapsed >= 700) {
+        diceResult = (uint16_t)random(1, (long)diceSides + 1);
+        diceState  = DICE_RESULT;
+        int ledCount = map(diceResult, 1, diceSides, 1, 9);
+        setLedCount(constrain(ledCount, 1, 9));
+        showDiceLcd();
+        Serial.print(F("d")); Serial.print(diceSides);
+        Serial.print(F(" => ")); Serial.println(diceResult);
+      } else {
+        // Counting-up animation: one new LED every ~80ms
+        int frame = (int)(elapsed / 80) % 9 + 1;
+        setLedCount(frame);
+      }
+    } else if (diceState == DICE_RESULT) {
+      int ledCount = map(diceResult, 1, diceSides, 1, 9);
+      setLedCount(constrain(ledCount, 1, 9));
+    } else {
+      allOff();
+    }
+    return;
+  }
+
+  // Mode 11: Track Logger - stream CSV to Serial, blink LEDs while recording
+  if (currentMode == MODE_TRACK) {
+	if (trackRunning) {
+	  unsigned long now = millis();
+	  if (now - trackLastSample >= TRACK_INTERVAL_MS) {
+		trackLastSample = now;
+		trackSampleNum++;
+		int ldr   = analogRead(ldrPin);
+		int snd   = analogRead(soundPin);
+		int pir   = digitalRead(pirPin);
+		float tmp = readTempC();
+		// CSV: sample#, ms, ldr, sound, pir, tempC
+		Serial.print(trackSampleNum); Serial.print(',');
+		Serial.print(now);            Serial.print(',');
+		Serial.print(ldr);            Serial.print(',');
+		Serial.print(snd);            Serial.print(',');
+		Serial.print(pir);            Serial.print(',');
+		Serial.println(tmp, 1);
+		// heartbeat: pulse LED 0 on every odd sample
+		digitalWrite(ledPins[0], (trackSampleNum & 1) ? HIGH : LOW);
+		// refresh LCD counter every 5 samples to save redraws
+		if (trackSampleNum % 5 == 0) showTrackLcd();
+	  }
+	} else {
+	  allOff();
+	}
+	return;
+  }
+
   switch (currentMode) {
 	case MODE_IDLE:
 	  allOff();
@@ -905,9 +1099,14 @@ void setMode(ProgramMode mode) {
   lastDisplayedPair  = (TempUnitPair)(-1);
   lastDisplayedSound = -1;
   lastDisplayedUV    = -1;
-  inNumEntry = false;
-  numLen = 0;
-  numBuf[0] = '\0';
+  diceState    = DICE_SELECT;
+  diceResult   = 0;
+  diceNumEntry = false;
+  diceNumLen   = 0;
+  diceNumBuf[0] = '\0';
+  trackRunning   = false;
+  trackSampleNum = 0;
+  trackLastSample = 0;
 
   // SD logging removed to save RAM
 
@@ -943,9 +1142,11 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("RAW FW v1");
+  lcd.print(F("RAW FW v1"));
   lcd.setCursor(0, 1);
-  lcd.print("Select 1-9");
+  lcd.print(F("Select 1-9"));
+
+  randomSeed(analogRead(A0) ^ (unsigned long)analogRead(A1) << 10 ^ millis());
 
   IrReceiver.begin(irPin, DISABLE_LED_FEEDBACK);
 
@@ -981,76 +1182,116 @@ void loop() {
 		if (!lcdOn && cmd != CMD_POWER) {
 		  lcdOn = true;
 		  lcd.backlight();
-		  lastDisplayedMode = -1;  // force redraw without changing mode
+		  if (inSettings) {
+			showSettingsLcd();
+		  } else {
+			lastDisplayedMode = -1;  // force redraw without changing mode
+		  }
 		  Serial.println(F("LCD wake"));
 		  return;
 		}
 
 		if (cmd == CMD_EQ) {
-		  if (inNumEntry) {
-			// Confirm typed number
-			if (numLen > 0) {
-			  int val = constrain(atoi(numBuf), 0, 1023);
-			  if (settingsParam == 0) brightValue = val;
-			  else                    darkValue   = val;
-			  Serial.print(F("Set ")); Serial.print(settingsParam == 0 ? "Bright" : "Dark");
-			  Serial.print(F(": ")); Serial.println(val);
-			}
-			inNumEntry = false;
-			numLen = 0;
-			numBuf[0] = '\0';
-			showSettingsLcd();
-		  } else {
-			if (millis() - lastEqToggleTime < 600) {
-			  // Ignore rapid EQ repeats to prevent enter/exit bouncing
-			  return;
-			}
-			lastEqToggleTime = millis();
-			if (inSettings) {
-			  inSettings = false;
-			  setMode(currentMode);
-			  Serial.println(F("Settings exit"));
-			} else if (currentMode == MODE_IDLE) {
-			  Serial.println(F("EQ ignored in IDLE"));
-			  Serial.println(F("Select mode 1-9 first"));
-			} else {
-			  inSettings = true;
-			  settingsParam = 0;
-			  showSettingsLcd();
-			  Serial.println(F("Settings menu"));
-			}
+		  if (millis() - lastEqToggleTime < 600) {
+			return;
 		  }
-		} else if (inSettings && !inNumEntry && cmd == CMD_UP) {
-		  if (settingsParam == 0) { brightValue = min(brightValue + 10, 1023); }
-		  else                    { darkValue   = max(darkValue   - 10, 0);    }
+		  lastEqToggleTime = millis();
+		  if (inSettings) {
+			inSettings = false;
+			setMode(currentMode);
+			Serial.println(F("Settings exit"));
+		  } else if (currentMode == MODE_IDLE ||
+					 currentMode == MODE_TEMPERATURE ||
+					 currentMode == MODE_UV_INDEX ||
+					 currentMode == MODE_DICE ||
+					 currentMode == MODE_TRACK) {
+			Serial.println(F("EQ not available"));
+		  } else {
+			inSettings = true;
+			// Sound Bar: param 0 = soundCeiling; others: param 0 = brightValue
+			settingsParam = 0;
+			showSettingsLcd();
+			Serial.println(F("Settings menu"));
+		  }
+		} else if (inSettings && cmd == CMD_UP) {
+		  if (currentMode == MODE_SOUND_BAR && settingsParam == 0) {
+			soundCeiling = min(soundCeiling + 25, 1023);
+		  } else if (settingsParam == 0) { brightValue = min(brightValue + 10, 1023); }
+		  else                           { darkValue   = min(darkValue   + 10, 1023); }
 		  showSettingsLcd();
 		  Serial.print(F("Bright:")); Serial.print(brightValue);
-		  Serial.print(F(" Dark:")); Serial.println(darkValue);
-		} else if (inSettings && !inNumEntry && cmd == CMD_DOWN) {
-		  if (settingsParam == 0) { brightValue = max(brightValue - 10, 0);    }
-		  else                    { darkValue   = min(darkValue   + 10, 1023); }
+		  Serial.print(F(" Dark:")); Serial.print(darkValue);
+		  Serial.print(F(" SndCeil:")); Serial.println(soundCeiling);
+		} else if (inSettings && cmd == CMD_DOWN) {
+		  if (currentMode == MODE_SOUND_BAR && settingsParam == 0) {
+			soundCeiling = max(soundCeiling - 25, 25);
+		  } else if (settingsParam == 0) { brightValue = max(brightValue - 10, 0); }
+		  else                           { darkValue   = max(darkValue   - 10, 0); }
 		  showSettingsLcd();
 		  Serial.print(F("Bright:")); Serial.print(brightValue);
-		  Serial.print(F(" Dark:")); Serial.println(darkValue);
-		} else if (inSettings && !inNumEntry && cmd == CMD_FORWARD) {
+		  Serial.print(F(" Dark:")); Serial.print(darkValue);
+		  Serial.print(F(" SndCeil:")); Serial.println(soundCeiling);
+		} else if (inSettings && cmd == CMD_FORWARD) {
 		  settingsParam = 1; showSettingsLcd();
-		} else if (inSettings && !inNumEntry && cmd == CMD_REVERSE) {
+		} else if (inSettings && cmd == CMD_REVERSE) {
 		  settingsParam = 0; showSettingsLcd();
-		} else if (inSettings && (cmd >= CMD_1 && cmd <= CMD_9 || cmd == CMD_0)) {
-		  if (!inNumEntry) { inNumEntry = true; numLen = 0; numBuf[0] = '\0'; }
-		  if (numLen < 4) {
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_UP) {
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; }
+		  diceSides = constrain(diceSides + 1, 2, 1000);
+		  showDiceLcd();
+		  Serial.print(F("Dice sides: ")); Serial.println(diceSides);
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_DOWN) {
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; }
+		  diceSides = constrain(diceSides - 1, 2, 1000);
+		  showDiceLcd();
+		  Serial.print(F("Dice sides: ")); Serial.println(diceSides);
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_FORWARD) {
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; diceNumLen = 0; diceNumBuf[0] = '\0'; }
+		  diceNextPreset();
+		  showDiceLcd();
+		  Serial.print(F("Dice preset: d")); Serial.println(diceSides);
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_REVERSE) {
+		  if (diceNumEntry && diceNumLen > 0) {
+			// Backspace
+			diceNumBuf[--diceNumLen] = '\0';
+			if (diceNumLen == 0) diceNumEntry = false;
+			showDiceLcd();
+		  } else {
+			if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+			dicePrevPreset();
+			showDiceLcd();
+			Serial.print(F("Dice preset: d")); Serial.println(diceSides);
+		  }
+		} else if (currentMode == MODE_DICE && !inSettings &&
+				   (cmd == CMD_0 || (cmd >= CMD_1 && cmd <= CMD_9))) {
+		  // Number key — start or continue typing a custom die size
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumLen = 0; diceNumBuf[0] = '\0'; }
+		  if (!diceNumEntry) { diceNumEntry = true; diceNumLen = 0; diceNumBuf[0] = '\0'; }
+		  if (diceNumLen < 4) {
 			uint8_t digit = 0;
 			switch (cmd) {
-			  case CMD_0: digit = 0; break; case CMD_1: digit = 1; break; case CMD_2: digit = 2; break;
-			  case CMD_3: digit = 3; break; case CMD_4: digit = 4; break;
-			  case CMD_5: digit = 5; break; case CMD_6: digit = 6; break;
-			  case CMD_7: digit = 7; break; case CMD_8: digit = 8; break;
-			  case CMD_9: digit = 9; break;
+			  case CMD_0: digit=0; break; case CMD_1: digit=1; break; case CMD_2: digit=2; break;
+			  case CMD_3: digit=3; break; case CMD_4: digit=4; break; case CMD_5: digit=5; break;
+			  case CMD_6: digit=6; break; case CMD_7: digit=7; break; case CMD_8: digit=8; break;
+			  case CMD_9: digit=9; break;
 			}
-			numBuf[numLen++] = '0' + digit;
-			numBuf[numLen]   = '\0';
-			showSettingsLcd();
+			diceNumBuf[diceNumLen++] = '0' + digit;
+			diceNumBuf[diceNumLen]   = '\0';
+			showDiceLcd();
 		  }
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_PLAY) {
+		  // Confirm any typed number, then roll
+		  if (diceNumEntry && diceNumLen > 0) {
+			uint16_t newSides = (uint16_t)constrain((int)atoi(diceNumBuf), 2, 1000);
+			diceSides    = newSides;
+			diceNumEntry = false;
+			diceNumLen   = 0;
+			diceNumBuf[0] = '\0';
+		  }
+		  diceState     = DICE_ROLLING;
+		  diceRollStart = millis();
+		  showDiceLcd();
+		  Serial.print(F("Roll d")); Serial.println(diceSides);
 		} else if (!inSettings && cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
@@ -1062,14 +1303,18 @@ void loop() {
 		  lcdOn = !lcdOn;
 		  if (lcdOn) {
 			lcd.backlight();
-			lastDisplayedMode = -1;  // force redraw of current mode
+			if (inSettings) {
+			  showSettingsLcd();
+			} else {
+			  lastDisplayedMode = -1;  // force redraw of current mode
+			}
 			Serial.println(F("LCD on"));
 		  } else {
 			lcd.noBacklight();
 			lcd.clear();
 			Serial.println(F("LCD off"));
 		  }
-		} else if (cmd == CMD_FORWARD) {
+		} else if (!inSettings && cmd == CMD_FORWARD) {
 		  if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair forward: C/F -> K/C -> K/R -> R/F -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 1) % 4);
@@ -1078,13 +1323,17 @@ void loop() {
 			Serial.print(F("Temp pair >> : "));
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
-			int next = (currentMode == MODE_IDLE) ? MODE_SMART_ROOM_LIGHT
-					 : (((int)currentMode % 9) + 1);
+			int next;
+			if      (currentMode == MODE_IDLE)      next = MODE_SMART_ROOM_LIGHT;
+			else if (currentMode == MODE_UV_INDEX)  next = MODE_DICE;
+			else if (currentMode == MODE_DICE)      next = MODE_TRACK;
+			else if (currentMode == MODE_TRACK)     next = MODE_SMART_ROOM_LIGHT;
+			else                                    next = (int)currentMode + 1;
 			setMode((ProgramMode)next);
 			Serial.print(F("Mode >> : "));
 			Serial.println(getModeLabel(currentMode));
 		  }
-		} else if (cmd == CMD_REVERSE) {
+		} else if (!inSettings && cmd == CMD_REVERSE) {
 		  if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair backward: C/F -> R/F -> K/R -> K/C -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 3) % 4);
@@ -1093,44 +1342,89 @@ void loop() {
 			Serial.print(F("Temp pair << : "));
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else {
-			int prev = (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
-					 ? MODE_UV_INDEX
-					 : ((int)currentMode - 1);
+			int prev;
+			if      (currentMode == MODE_IDLE || currentMode == MODE_SMART_ROOM_LIGHT)
+												  prev = MODE_TRACK;
+			else if (currentMode == MODE_TRACK) prev = MODE_DICE;
+			else if (currentMode == MODE_DICE)  prev = MODE_UV_INDEX;
+			else                                prev = (int)currentMode - 1;
 			setMode((ProgramMode)prev);
 			Serial.print(F("Mode << : "));
 			Serial.println(getModeLabel(currentMode));
 		  }
-		} else if (isMappedCmd(cmd)) {
+		} else if (!inSettings && isMappedCmd(cmd)) {
 		  ProgramMode selectedMode = getModeFromCmd(cmd);
 		  setMode(selectedMode);
 		  Serial.print(F("Mode: "));
 		  Serial.println(getModeLabel(currentMode));
-		} else if (cmd == CMD_STREPT) {
+		} else if (!inSettings && cmd == CMD_STREPT) {
 		  holdDisplay = !holdDisplay;
 		  if (!holdDisplay) lastDisplayedMode = -1;
 		  Serial.println(holdDisplay ? F("Hold ON") : F("Hold OFF"));
-		} else if (cmd == CMD_PLAY) {
-		  ledsOff = false;
-		  holdDisplay = false;
-		  setMode(currentMode);
-		  Serial.println(F("Mode reset"));
-		} else if (cmd == CMD_VOLUP) {
-		  if (currentMode == MODE_SOUND_BAR) {
+		} else if (inSettings && cmd == CMD_PLAY) {
+		  // PLAY is a no-op in settings -- just redraw so the screen can't go blank
+		  showSettingsLcd();
+		  Serial.println(F("PLAY ignored (settings)"));
+		} else if (currentMode == MODE_TRACK && !inSettings && cmd == CMD_PLAY) {
+		  trackRunning = !trackRunning;
+		  if (trackRunning) {
+			trackSampleNum = 0;
+			trackLastSample = millis();
+			// Print CSV header
+			Serial.println(F("sample,ms,ldr,sound,pir,tempC"));
+			Serial.println(F("---TRACK START---"));
+		  } else {
+			Serial.println(F("---TRACK STOP---"));
+		  }
+		  showTrackLcd();
+		} else if (!inSettings && cmd == CMD_PLAY) {
+		  if (currentMode == MODE_IDLE) {
+			setMode(MODE_DICE);
+			Serial.println(F("PLAY -> Dice"));
+		  } else {
+			ledsOff = false;
+			holdDisplay = false;
+			setMode(currentMode);
+			Serial.println(F("Mode reset"));
+		  }
+		} else if (!inSettings && cmd == CMD_VOLUP) {
+		  if (currentMode == MODE_IDLE) {
+			setMode(MODE_TRACK);
+			Serial.println(F("VOL+ -> Track"));
+		  } else if (currentMode == MODE_SOUND_BAR) {
 			soundCeiling = min(soundCeiling + 25, 1023);
 			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
+		  } else if (currentMode == MODE_DICE || currentMode == MODE_TRACK) {
+			// no threshold to adjust in utility modes
 		  } else {
 			brightValue = min(brightValue + 10, 1023);
 			Serial.print(F("Bright:")); Serial.println(brightValue);
 		  }
-		} else if (cmd == CMD_VOLDN) {
-		  if (currentMode == MODE_SOUND_BAR) {
+		} else if (!inSettings && cmd == CMD_VOLDN) {
+		  if (currentMode == MODE_IDLE) {
+			Serial.println(F("VOL- idle unused"));
+		  } else if (currentMode == MODE_SOUND_BAR) {
 			soundCeiling = max(soundCeiling - 25, 25);
 			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
+		  } else if (currentMode == MODE_DICE || currentMode == MODE_TRACK) {
+			// no threshold to adjust in utility modes
 		  } else {
 			brightValue = max(brightValue - 10, 0);
 			Serial.print(F("Bright:")); Serial.println(brightValue);
 		  }
-		} else if (cmd == CMD_FUNC) {
+		} else if (inSettings && cmd == CMD_FUNC) {
+		  brightValue  = DEFAULT_BRIGHT;
+		  darkValue    = DEFAULT_DARK;
+		  soundCeiling = DEFAULT_SOUND_CEIL;
+		  lcd.clear();
+		  lcd.setCursor(0, 0);
+		  lcd.print(F("Defaults set!"));
+		  lcd.setCursor(0, 1);
+		  lcd.print(F("EQ to exit"));
+		  delay(1200);
+		  showSettingsLcd();
+		  Serial.println(F("Settings defaults reset"));
+		} else if (!inSettings && cmd == CMD_FUNC) {
 		  ledsOff = !ledsOff;
 		  if (ledsOff) {
 			allOff();

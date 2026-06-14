@@ -1,4 +1,4 @@
-# Howl's Moving Arduino
+﻿# Howl's Moving Arduino
 
 **A multi-board sensor controller, operator interface, and eventual self-propelled platform.**  
 Currently running on Arduino Uno R3 (DFRduino clone) with Arduino CLI + Visual Studio Community 2026.  
@@ -45,8 +45,10 @@ Started this phase wanting to add temperature, sound and UV sensing on top of th
 
 **What got built:**
 - 3 new sensor modes (Modes 7–9): temperature with 4 unit pairs, sound level bar, UV index stub
-- EQ settings menu for live threshold tuning without reflashing — type values directly with the IR number keys
+- EQ settings menu for live threshold tuning without reflashing — arrow-key tuning (no typed numeric entry in main SensorModes sketch)
 - ST/REPT display hold, works like a meter hold with `[H]` indicator on screen
+- Dice Roller mode (d2–d1000 custom + presets) and Track Logger mode (LCD status + Serial CSV)
+- Idle quick-select shortcuts: PLAY=Dice, VOL+=Track
 - Power button toggles LCD on/off and now correctly stays in the current mode on restore
 - `0` always returns to menu and clears hold state so you can never get stuck
 - Menu restructured to 2 items per page on a 16x2 LCD — much more readable
@@ -121,7 +123,7 @@ This project uses **Visual Studio Community 2026** with the Arduino extension ra
 |-------|--------|--------------|
 | Arduino Uno R3 (DFRduino) | Active | Sensor controller — current project |
 | Arduino Mega 2560 + shield | Ready | Expanded I/O — port from Uno when done |
-| Arduino Uno R4 WiFi | Boxed | Future — onboard LED matrix + WiFi/BT |
+| Arduino Uno R4 WiFi | Boxed | Reference tools (periodic table, formula sheet) + WiFi/BT -- Phase 2.5 |
 | Arduino Uno R4 (non-WiFi) | Available | Spare / comparison |
 | NodeMCU ESP8266 + OLED ×2 | On order | WiFi logger + robot chauffeur controller |
 | BTT SKR Mini E3 (never flashed) | Ready | Stepper motion controller for robot chassis |
@@ -150,6 +152,8 @@ This project uses **Visual Studio Community 2026** with the Arduino extension ra
 | 7 | Temperature | LM35 (A2) | 4 unit pairs: C/F, K/C, K/R, R/F — Fwd/Rev cycles pairs |
 | 8 | Mic Bar | DFR0034 (A1) | Level meter — synced LED + LCD block bar |
 | 9 | UV Index | GUVA-S12SD (A3) | UV index bar (pending daylight calibration) |
+| FWD from 9 | Dice Roller | None | d2–d1000 custom/presets, PLAY roll, LED result map |
+| FWD from Dice | Track Logger | PIR+LDR+Sound+Temp | PLAY start/stop CSV stream to Serial + LCD REC status |
 
 ---
 
@@ -244,16 +248,32 @@ Verified via RawCodeTest logger (NEC protocol, address 0xBF00):
 - [ ] UV sensor daylight calibration (Mode 9)
 - [ ] Merge SettingsInput to SensorModes when validated
 
-### Phase 2 — Mega Expansion
+### Phase 2 -- Mega Expansion
 - [ ] Port SensorModes sketch to Mega (repin assignments)
-- [ ] Add DHT11/22 — replace LM35, adds humidity for free on one pin
-- [ ] Add relay — temperature-triggered fan/actuator
-- [ ] Add HC-SR04 ultrasonic — proximity / obstacle awareness
+- [ ] Add DHT11/22 -- replace LM35, adds humidity for free on one pin
+- [ ] Add relay -- temperature-triggered fan/actuator
+- [ ] Add HC-SR04 ultrasonic -- proximity / obstacle awareness
 - [ ] Add stepper motor control
 - [ ] EEPROM settings persist (same API on Mega)
 
-### Phase 3 — NodeMCU WiFi Logger
-> NodeMCU ESP8266 boards with onboard OLED (×2) — on order
+### Phase 2.5 -- Reference Tools (Mega or Uno R4 WiFi + OLED)
+> Target: Arduino Mega 2560 or Uno R4 WiFi + SSD1306 128x64 I2C OLED.
+> All data in PROGMEM -- negligible RAM overhead. Uno R3 excluded (insufficient Flash/RAM for full tables).
+
+**Periodic Table Lookup**
+- [ ] PROGMEM table -- atomic number, symbol, name, atomic mass, oxidation states, notable isotopes
+- [ ] UP/DOWN scroll elements 1-118; number keys jump by atomic number (typed entry)
+- [ ] FWD/REV cycle data pages per element: identity > mass/category > charges > isotopes
+- [ ] OLED: large symbol centre, details small-font below; Serial prints full element line
+
+**Formula Sheet Lookup**
+- [ ] PROGMEM library by category: Mechanics, Electricity, Thermodynamics, Waves, Chemistry, Geometry
+- [ ] FWD/REV cycle categories; UP/DOWN scroll formulas within category; number keys jump to category
+- [ ] OLED: formula name row 1, expression row 2, variable key rows 3-4
+- [ ] PLAY prints formula + variable definitions to Serial for copy-paste
+
+### Phase 3 -- NodeMCU WiFi Logger
+> NodeMCU ESP8266 boards with onboard OLED (x2) -- on order
 
 - [ ] Flash NodeMCU with WiFi serial receiver sketch
 - [ ] Uno TX → NodeMCU RX (5V→3.3V: 10kΩ + 20kΩ voltage divider)
@@ -330,7 +350,7 @@ AI Declaration: Developed collaboratively with GitHub Copilot. All design decisi
 |-------|--------|--------------|
 | Arduino Uno R3 (DFRduino) | Active | Sensor controller — current project |
 | Arduino Mega 2560 + shield | Ready | Expanded I/O — port from Uno when done |
-| Arduino Uno R4 WiFi | Boxed | Future — onboard LED matrix + WiFi/BT |
+| Arduino Uno R4 WiFi | Boxed | Reference tools (periodic table, formula sheet) + WiFi/BT -- Phase 2.5 |
 | Arduino Uno R4 (non-WiFi) | Available | Spare / comparison |
 | NodeMCU ESP8266 + OLED ×2 | On order | WiFi logger + robot chauffeur controller |
 | BTT SKR Mini E3 (never flashed) | Ready | Stepper motion controller for robot chassis |
@@ -441,16 +461,32 @@ Verified via RawCodeTest logger (NEC protocol, address 0xBF00):
 - [ ] Direct number entry in settings menu via IR keypad
 - [ ] UV sensor daylight calibration (Mode 9)
 
-### Phase 2 — Mega Expansion
+### Phase 2 -- Mega Expansion
 - [ ] Port SensorModes sketch to Mega (repin assignments)
-- [ ] Add DHT11/22 — replace LM35 with temp + humidity on one pin
-- [ ] Add relay (D13 equivalent) — temperature-triggered fan/actuator
-- [ ] Add HC-SR04 ultrasonic — proximity / obstacle awareness
+- [ ] Add DHT11/22 -- replace LM35 with temp + humidity on one pin
+- [ ] Add relay (D13 equivalent) -- temperature-triggered fan/actuator
+- [ ] Add HC-SR04 ultrasonic -- proximity / obstacle awareness
 - [ ] Add stepper motor control (freed pins from shift register or direct Mega pins)
 - [ ] EEPROM settings persist (same code, same EEPROM API on Mega)
 
-### Phase 3 — NodeMCU WiFi Logger
-> NodeMCU ESP8266 boards with onboard OLED (×2) — on order
+### Phase 2.5 -- Reference Tools (Mega or Uno R4 WiFi + OLED)
+> Target: Arduino Mega 2560 or Uno R4 WiFi + SSD1306 128x64 I2C OLED.
+> All data in PROGMEM -- negligible RAM overhead. Uno R3 excluded (insufficient Flash/RAM for full tables).
+
+**Periodic Table Lookup**
+- [ ] PROGMEM table -- atomic number, symbol, name, atomic mass, oxidation states, notable isotopes
+- [ ] UP/DOWN scroll elements 1-118; number keys jump by atomic number (typed entry)
+- [ ] FWD/REV cycle data pages: identity > mass/category > charges > isotopes
+- [ ] OLED: large symbol centre, details small-font; Serial prints full element line
+
+**Formula Sheet Lookup**
+- [ ] PROGMEM library by category: Mechanics, Electricity, Thermodynamics, Waves, Chemistry, Geometry
+- [ ] FWD/REV cycle categories; UP/DOWN scroll formulas; number keys jump to category
+- [ ] OLED: formula name / expression / variable key across 4 rows
+- [ ] PLAY prints formula + variable definitions to Serial
+
+### Phase 3 -- NodeMCU WiFi Logger
+> NodeMCU ESP8266 boards with onboard OLED (x2) -- on order
 
 - [ ] Flash NodeMCU with WiFi serial receiver sketch
 - [ ] Uno TX → NodeMCU RX (via 5V→3.3V voltage divider: 10kΩ + 20kΩ)

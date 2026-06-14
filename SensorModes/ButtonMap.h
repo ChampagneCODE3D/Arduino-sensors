@@ -52,7 +52,9 @@ enum ProgramMode {
     MODE_NIGHT_WARNING       = 6,
     MODE_TEMPERATURE         = 7,
     MODE_SOUND_BAR           = 8,  // Mode 8: Sound level bar (DFR0034 on A1)
-    MODE_UV_INDEX            = 9   // Mode 9: UV index (GUVA-S12SD on A3)
+    MODE_UV_INDEX            = 9,  // Mode 9: UV index (GUVA-S12SD on A3)
+    MODE_DICE                = 10,  // Mode 10: Custom dice d2-d1000 (FWD from Mode 9)
+    MODE_TRACK               = 11  // Mode 11: Sensor logger, CSV to Serial (FWD from Dice)
 };
 
 // Temperature unit pair sub-modes for Mode 7
@@ -76,6 +78,8 @@ inline const char* getModeLabel(ProgramMode mode) {
 		case MODE_TEMPERATURE:         return "Temperature";
 		case MODE_SOUND_BAR:           return "Mic Bar";
 		case MODE_UV_INDEX:            return "UV Index";
+		case MODE_DICE:                return "Dice Roller";
+		case MODE_TRACK:               return "Track Logger";
 		default:                       return "Idle";
 	}
 }
@@ -106,7 +110,9 @@ inline const char* getModeDescription(ProgramMode mode) {
 		case MODE_TEMPERATURE:         return "fw/rv=unit pair";
 		case MODE_SOUND_BAR:           return "Level meter";
 		case MODE_UV_INDEX:            return "UV level bar";
-		default:                       return "Select 1-8";
+		case MODE_DICE:                return "d2-d1000 PLAY=roll";
+		case MODE_TRACK:               return "CSV>Serial PLAY=rec";
+		default:                       return "Select 1-9";
 	}
 }
 
@@ -115,13 +121,16 @@ inline const char* getModeCornerLabel(ProgramMode mode) {
 	case MODE_SMART_ROOM_LIGHT:    return "Room";
 	case MODE_HALLWAY_LIGHT:       return "Hall";
 	case MODE_STREETLIGHT:         return "Street";
-	case MODE_ENERGY_SAVING_ROOM:  return "Save";
+	case MODE_ENERGY_SAVING_ROOM:  return "Eco";
 	case MODE_SMART_HOME_LIGHTING: return "Wake";
 	case MODE_NIGHT_WARNING:       return "Warn";
 	case MODE_TEMPERATURE:         return "Temp";
 	case MODE_SOUND_BAR:           return "Sound";
 	case MODE_UV_INDEX:            return "UV";
+	case MODE_DICE:                return "Dice";
+	case MODE_TRACK:               return "Track";
 	default:                       return "";
+
   }
 }
 
