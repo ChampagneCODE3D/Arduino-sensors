@@ -269,7 +269,7 @@ void showSettingsLcd() {
     lcd.print(numBuf);
     lcd.print('_');
     lcd.setCursor(0, 1);
-    lcd.print(F("EQ=confirm 0=clr"));
+    lcd.print(F("EQ=confirm"));
   } else if (settingsParam == 0) {
     lcd.print(F(">Bright: "));
     lcd.print(brightValue);
@@ -286,7 +286,7 @@ void showSettingsLcd() {
 }
 
 void showIdleMenu() {
-  int page = (millis() / 2500) % 6;
+  int page = (millis() / 2500) % 7;
   if (page == lastMenuPage) {
 	return;
   }
@@ -327,9 +327,15 @@ void showIdleMenu() {
 	  break;
 	case 5:
 	  lcd.setCursor(0, 0);
-	  lcd.print("Power ON/OFF");
+	  lcd.print("EQ=Settings");
 	  lcd.setCursor(0, 1);
-	  lcd.print("LCD screen");
+	  lcd.print("PWR=LCD");
+	  break;
+	case 6:
+	  lcd.setCursor(0, 0);
+	  lcd.print("FUNC=LED toggle");
+	  lcd.setCursor(0, 1);
+	  lcd.print("ST/REPT=Hold");
 	  break;
   }
 }
@@ -338,7 +344,7 @@ void showIdleMenu() {
 
 void showModeOnLcd(int lightValue, int pirState, int soundValue) {
   lcd.backlight();
-  const char* cornerLabel = ledsOff ? "[X] " : holdDisplay ? "[H] " : getModeCornerLabel(currentMode);
+  const char* cornerLabel = getModeCornerLabel(currentMode);
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
@@ -934,9 +940,9 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select 1-7");
+  lcd.print("RAW FW v1");
   lcd.setCursor(0, 1);
-  lcd.print("Press button");
+  lcd.print("Select 1-9");
 
   IrReceiver.begin(irPin, DISABLE_LED_FEEDBACK);
 
@@ -957,12 +963,11 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
-  // Temporary: print raw LDR value every 2s for lux calibration
+  // Optional raw debug print (every 2s)
   static unsigned long lastRawPrint = 0;
   if (millis() - lastRawPrint > 2000) {
     lastRawPrint = millis();
-    Serial.print(F("LDR raw: ")); Serial.print(lightValue);
-    Serial.print(F("  Raw: ")); Serial.println(lightValue);
+    Serial.print(F("Raw: ")); Serial.println(lightValue);
   }
 
   if (IrReceiver.decode()) {
@@ -1027,13 +1032,13 @@ void loop() {
 		  settingsParam = 1; showSettingsLcd();
 		} else if (inSettings && !inNumEntry && cmd == CMD_REVERSE) {
 		  settingsParam = 0; showSettingsLcd();
-		} else if (inSettings && cmd >= CMD_1 && cmd <= CMD_9) {
-		  // Start or continue number entry on any digit 1-9
+		} else if (inSettings && (cmd >= CMD_1 && cmd <= CMD_9 || cmd == CMD_0)) {
+		  // Start or continue number entry on any digit 0-9
 		  if (!inNumEntry) { inNumEntry = true; numLen = 0; numBuf[0] = '\0'; }
 		  if (numLen < 4) {
 			uint8_t digit = 0;
 			switch (cmd) {
-			  case CMD_1: digit = 1; break; case CMD_2: digit = 2; break;
+			  case CMD_0: digit = 0; break; case CMD_1: digit = 1; break; case CMD_2: digit = 2; break;
 			  case CMD_3: digit = 3; break; case CMD_4: digit = 4; break;
 			  case CMD_5: digit = 5; break; case CMD_6: digit = 6; break;
 			  case CMD_7: digit = 7; break; case CMD_8: digit = 8; break;
@@ -1043,11 +1048,6 @@ void loop() {
 			numBuf[numLen]   = '\0';
 			showSettingsLcd();
 		  }
-		} else if (inSettings && inNumEntry && cmd == CMD_0) {
-		  // 0 clears the typed buffer while in number entry
-		  numLen = 0;
-		  numBuf[0] = '\0';
-		  showSettingsLcd();
 		} else if (!inSettings && cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
@@ -1140,7 +1140,7 @@ void loop() {
 			lcd.setCursor(0, 0);
 			lcd.print(F("Fwd/Rev=param"));
 			lcd.setCursor(0, 1);
-			lcd.print(F("Up/Dn EQ=ok 0=clr"));
+			lcd.print(F("Up/Dn EQ=ok"));
 			Serial.println(F("Settings help"));
 		  } else {
 			// LED kill toggle

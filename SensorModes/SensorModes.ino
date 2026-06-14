@@ -71,6 +71,7 @@ int lastDisplayedPresence = -1;
 int lastMenuPage = -1;
 unsigned long lastIrTime = 0;
 uint8_t lastIrCode = 0xFF;
+unsigned long lastEqToggleTime = 0;
 enum WarnState { WARN_IDLE, WARN_INTRO, WARN_OUTRO, WARN_COUNTDOWN };
 WarnState warnState = WARN_IDLE;
 int warnLedIndex = 0;
@@ -105,6 +106,11 @@ bool ledsOff = false;      // FUNC kills LED output without leaving mode
 bool inSettings = false;   // EQ settings menu active
 int settingsParam = 0;     // 0 = brightValue, 1 = darkValue
 int soundCeiling = 250;    // Sound bar top of scale (VOL+/- adjusts)
+
+// Number entry state
+bool inNumEntry = false;   // currently typing a number
+char numBuf[5];            // digit buffer e.g. "1023\0"
+uint8_t numLen = 0;        // digits typed so far
 TempUnitPair tempUnitPair = TEMP_C_F;
 float smoothedTempC = 0.0f;       // smoothed temperature in deg C
 float lastDisplayedTempC = -999.0f; // sentinel: force first draw
@@ -257,7 +263,14 @@ void showSettingsLcd() {
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
-  if (settingsParam == 0) {
+
+  if (inNumEntry) {
+    lcd.print(settingsParam == 0 ? F(">Bright: ") : F(">Dark:   "));
+    lcd.print(numBuf);
+    lcd.print('_');
+    lcd.setCursor(0, 1);
+    lcd.print(F("EQ=ok"));
+  } else if (settingsParam == 0) {
     lcd.print(F(">Bright: "));
     lcd.print(brightValue);
     lcd.setCursor(0, 1);
@@ -273,7 +286,7 @@ void showSettingsLcd() {
 }
 
 void showIdleMenu() {
-  int page = (millis() / 2500) % 6;
+  int page = (millis() / 2500) % 7;
   if (page == lastMenuPage) {
 	return;
   }
@@ -314,9 +327,15 @@ void showIdleMenu() {
 	  break;
 	case 5:
 	  lcd.setCursor(0, 0);
-	  lcd.print("EQ Settings");
+	  lcd.print("EQ=Settings");
 	  lcd.setCursor(0, 1);
-	  lcd.print("PWR LCD");
+	  lcd.print("PWR=LCD");
+	  break;
+	case 6:
+	  lcd.setCursor(0, 0);
+	  lcd.print("FUNC=LED toggle");
+	  lcd.setCursor(0, 1);
+	  lcd.print("ST/REPT=Hold");
 	  break;
   }
 }
@@ -325,8 +344,7 @@ void showIdleMenu() {
 
 void showModeOnLcd(int lightValue, int pirState, int soundValue) {
   lcd.backlight();
-  // Corner label shows [H] when display is frozen, normal label otherwise
-  const char* cornerLabel = ledsOff ? "[X] " : holdDisplay ? "[H] " : getModeCornerLabel(currentMode);
+  const char* cornerLabel = getModeCornerLabel(currentMode);
 
   if (currentMode == MODE_IDLE) {
 	showIdleMenu();
@@ -780,7 +798,7 @@ void applyMode(int pirState, int lightValue, int soundValue) {
     return;
   }
 
-  // Mode 9: Sound bar - peak-hold LED bar responding to mic level
+  // Mode 8: Sound bar - peak-hold LED bar responding to mic level
   if (currentMode == MODE_SOUND_BAR) {
     int count = map(soundValue, 0, soundCeiling, 0, 9);
     count = constrain(count, 1, 9);
@@ -887,6 +905,9 @@ void setMode(ProgramMode mode) {
   lastDisplayedPair  = (TempUnitPair)(-1);
   lastDisplayedSound = -1;
   lastDisplayedUV    = -1;
+  inNumEntry = false;
+  numLen = 0;
+  numBuf[0] = '\0';
 
   // SD logging removed to save RAM
 
@@ -922,9 +943,9 @@ void setup() {
   lcd.backlight();
   lcd.clear();
   lcd.setCursor(0, 0);
-  lcd.print("Select 1-7");
+  lcd.print("RAW FW v1");
   lcd.setCursor(0, 1);
-  lcd.print("Press button");
+  lcd.print("Select 1-9");
 
   IrReceiver.begin(irPin, DISABLE_LED_FEEDBACK);
 
@@ -945,10 +966,6 @@ void loop() {
   smoothedLightValue = (smoothedLightValue * 2 + lightValue) / 3;
   smoothedTempC = (smoothedTempC * 2.0f + readTempC()) / 3.0f;
 
-  if (inSettings) {
-    // IR handling still runs below; skip sensor/display updates
-    // fall through to IR section at end of loop
-  } else {
   if (IrReceiver.decode()) {
 	uint16_t addr = IrReceiver.decodedIRData.address;
 	uint8_t  cmd  = IrReceiver.decodedIRData.command;
@@ -970,32 +987,71 @@ void loop() {
 		}
 
 		if (cmd == CMD_EQ) {
-		  inSettings = !inSettings;
-		  if (inSettings) {
-			settingsParam = 0;
+		  if (inNumEntry) {
+			// Confirm typed number
+			if (numLen > 0) {
+			  int val = constrain(atoi(numBuf), 0, 1023);
+			  if (settingsParam == 0) brightValue = val;
+			  else                    darkValue   = val;
+			  Serial.print(F("Set ")); Serial.print(settingsParam == 0 ? "Bright" : "Dark");
+			  Serial.print(F(": ")); Serial.println(val);
+			}
+			inNumEntry = false;
+			numLen = 0;
+			numBuf[0] = '\0';
 			showSettingsLcd();
-			Serial.println(F("Settings menu"));
 		  } else {
-			setMode(currentMode);
-			Serial.println(F("Settings exit"));
+			if (millis() - lastEqToggleTime < 600) {
+			  // Ignore rapid EQ repeats to prevent enter/exit bouncing
+			  return;
+			}
+			lastEqToggleTime = millis();
+			if (inSettings) {
+			  inSettings = false;
+			  setMode(currentMode);
+			  Serial.println(F("Settings exit"));
+			} else if (currentMode == MODE_IDLE) {
+			  Serial.println(F("EQ ignored in IDLE"));
+			  Serial.println(F("Select mode 1-9 first"));
+			} else {
+			  inSettings = true;
+			  settingsParam = 0;
+			  showSettingsLcd();
+			  Serial.println(F("Settings menu"));
+			}
 		  }
-		} else if (inSettings && cmd == CMD_UP) {
+		} else if (inSettings && !inNumEntry && cmd == CMD_UP) {
 		  if (settingsParam == 0) { brightValue = min(brightValue + 10, 1023); }
 		  else                    { darkValue   = max(darkValue   - 10, 0);    }
 		  showSettingsLcd();
 		  Serial.print(F("Bright:")); Serial.print(brightValue);
 		  Serial.print(F(" Dark:")); Serial.println(darkValue);
-		} else if (inSettings && cmd == CMD_DOWN) {
+		} else if (inSettings && !inNumEntry && cmd == CMD_DOWN) {
 		  if (settingsParam == 0) { brightValue = max(brightValue - 10, 0);    }
 		  else                    { darkValue   = min(darkValue   + 10, 1023); }
 		  showSettingsLcd();
 		  Serial.print(F("Bright:")); Serial.print(brightValue);
 		  Serial.print(F(" Dark:")); Serial.println(darkValue);
-		} else if (inSettings && cmd == CMD_FORWARD) {
+		} else if (inSettings && !inNumEntry && cmd == CMD_FORWARD) {
 		  settingsParam = 1; showSettingsLcd();
-		} else if (inSettings && cmd == CMD_REVERSE) {
+		} else if (inSettings && !inNumEntry && cmd == CMD_REVERSE) {
 		  settingsParam = 0; showSettingsLcd();
-		} else if (cmd == CMD_0) {
+		} else if (inSettings && (cmd >= CMD_1 && cmd <= CMD_9 || cmd == CMD_0)) {
+		  if (!inNumEntry) { inNumEntry = true; numLen = 0; numBuf[0] = '\0'; }
+		  if (numLen < 4) {
+			uint8_t digit = 0;
+			switch (cmd) {
+			  case CMD_0: digit = 0; break; case CMD_1: digit = 1; break; case CMD_2: digit = 2; break;
+			  case CMD_3: digit = 3; break; case CMD_4: digit = 4; break;
+			  case CMD_5: digit = 5; break; case CMD_6: digit = 6; break;
+			  case CMD_7: digit = 7; break; case CMD_8: digit = 8; break;
+			  case CMD_9: digit = 9; break;
+			}
+			numBuf[numLen++] = '0' + digit;
+			numBuf[numLen]   = '\0';
+			showSettingsLcd();
+		  }
+		} else if (!inSettings && cmd == CMD_0) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
 		  ledsOff = false;
@@ -1092,7 +1148,6 @@ void loop() {
 	  }
 		}
 	  }
-	} // end !inSettings
 
 	if (!inSettings) {
 	  applyMode(pirState, smoothedLightValue, soundValue);
