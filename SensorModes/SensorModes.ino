@@ -129,31 +129,28 @@ int lastDisplayedSound = -1;  // For Mode 8 LCD refresh
 // -------------------------
 const uint16_t dndPresets[] PROGMEM = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
 const uint8_t  dndPresetCount = 19;
-uint16_t diceSides  = 20;      // Current die size (2-1000)
+uint16_t diceSides  = 20;      // Current die size (2-100)
 uint16_t diceResult = 0;       // Last roll result (0 = not yet rolled)
 enum DiceState : uint8_t { DICE_SELECT, DICE_ROLLING, DICE_RESULT };
+enum CounterBoolSource : uint8_t { CNT_SRC_PIR, CNT_SRC_LDR_HIGH, CNT_SRC_SOUND_HIGH };
 DiceState diceState = DICE_SELECT;
 unsigned long diceRollStart = 0;
-bool     diceNumEntry = false; // User is typing a custom die size
-char     diceNumBuf[5];        // "1000\0"
-uint8_t  diceNumLen   = 0;
+// Dice edit mode removed - always use arrows
 
-// -------------------------
-// TRACK LOGGER STATE
-// (Mode 11)
-// -------------------------
-bool      trackRunning   = false;  // actively logging
-uint32_t  trackSampleNum = 0;      // row counter
-unsigned long trackLastSample = 0; // last sample timestamp (ms)
-#define TRACK_INTERVAL_MS 1000     // one reading per second
+// Setter with hard max enforcement
+void setDiceSides(uint16_t value) {
+  if (value > 100) value = 100;
+  if (value < 2) value = 2;
+  diceSides = value;
+}
 
 // -------------------------
 // MANUAL TEST MODE STATE
-// (Mode 12)
+// (Mode 11)
 // -------------------------
 uint16_t testLedMask = 0;   // bit 0..8 controls each LED
 uint8_t  testBarCount = 0;  // 0..9 for bar mode via Up/Down
-enum TestEffect : uint8_t { TEST_SOLID, TEST_KNIGHT, TEST_SPARKLE };
+enum TestEffect : uint8_t { TEST_SOLID, TEST_SCANNER, TEST_TRAFFIC };
 TestEffect testEffect = TEST_SOLID;
 bool testAnimRun = false;
 unsigned long testStepAt = 0;
@@ -164,17 +161,92 @@ int8_t  testKnightDir = 1;
 unsigned long diceCritFlashUntil = 0;
 uint8_t diceCritFlashPhase = 0;
 
-// Track heartbeat style
-uint8_t trackHeartbeatStyle = 0; // 0=single pulse, 1=double pulse
+// -------------------------
+// COUNTER MODE STATE
+// (Mode 12)
+// -------------------------
+int counterValue = 0;
+bool counterNumEntry = false;
+bool counterEntryNegative = false;
+char counterBuf[7];      // typed numeric input
+uint8_t counterLen = 0;
+CounterBoolSource counterSource = CNT_SRC_PIR;
+int counterBoolThreshold = 250;
+bool counterLastState = false;
 
 // -------------------------
 // SERIAL MESSAGE MODE STATE
-// (Mode 13)
+// (Mode 12)
 // -------------------------
 char serialMsgLine1[17] = "Serial Msg Mode";
-char serialMsgLine2[17] = "Send: L1|L2";
+char serialMsgLine2[17] = "1Y 2N 3M 4R";
 char serialMsgBuf[40];
 uint8_t serialMsgLen = 0;
+
+// -------------------------
+// HELLO MODE STATE
+// (Mode 14)
+// -------------------------
+const char helloLangEN[] PROGMEM = "English";
+const char helloLangES[] PROGMEM = "Spanish";
+const char helloLangFR[] PROGMEM = "French";
+const char helloLangAR[] PROGMEM = "Arabic";
+const char helloLangAM[] PROGMEM = "Amharic";
+const char helloLangTL[] PROGMEM = "Tagalog";
+
+const char helloText0[] PROGMEM  = "Hello";
+const char helloText1[] PROGMEM  = "Thanks";
+const char helloText2[] PROGMEM  = "Please";
+const char helloText3[] PROGMEM  = "Welcome";
+const char helloText4[] PROGMEM  = "Bye";
+const char helloText5[] PROGMEM  = "Hola/Hello";
+const char helloText6[] PROGMEM  = "Gracias/Thanks";
+const char helloText7[] PROGMEM  = "Por favor/Please";
+const char helloText8[] PROGMEM  = "De nada/Welcome";
+const char helloText9[] PROGMEM  = "Adios/Bye";
+const char helloText10[] PROGMEM = "Bonjour/Hello";
+const char helloText11[] PROGMEM = "Merci/Thanks";
+const char helloText12[] PROGMEM = "SVP/Please";
+const char helloText13[] PROGMEM = "De rien/Welcome";
+const char helloText14[] PROGMEM = "Au revoir/Bye";
+const char helloText15[] PROGMEM = "Salaam/Hello";
+const char helloText16[] PROGMEM = "Shukran/Thanks";
+const char helloText17[] PROGMEM = "Minfadlak/Please";
+const char helloText18[] PROGMEM = "Afwan/Welcome";
+const char helloText19[] PROGMEM = "Maasalam/Bye";
+const char helloText20[] PROGMEM = "Selam/Hello";
+const char helloText21[] PROGMEM = "Amesegenallo/Thx";
+const char helloText22[] PROGMEM = "Ebakih/Please";
+const char helloText23[] PROGMEM = "Enkwan/Welcome";
+const char helloText24[] PROGMEM = "Dehna hun/Bye";
+const char helloText25[] PROGMEM = "Kumusta/Hello";
+const char helloText26[] PROGMEM = "Salamat/Thanks";
+const char helloText27[] PROGMEM = "Pakiusap/Please";
+const char helloText28[] PROGMEM = "Walang anuman/YC";
+const char helloText29[] PROGMEM = "Paalam/Bye";
+
+struct HelloEntry {
+  PGM_P lang;
+  PGM_P text;
+};
+
+const HelloEntry helloEntries[] PROGMEM = {
+  {helloLangEN, helloText0},  {helloLangEN, helloText1},  {helloLangEN, helloText2},  {helloLangEN, helloText3},  {helloLangEN, helloText4},
+  {helloLangES, helloText5},  {helloLangES, helloText6},  {helloLangES, helloText7},  {helloLangES, helloText8},  {helloLangES, helloText9},
+  {helloLangFR, helloText10}, {helloLangFR, helloText11}, {helloLangFR, helloText12}, {helloLangFR, helloText13}, {helloLangFR, helloText14},
+  {helloLangAR, helloText15}, {helloLangAR, helloText16}, {helloLangAR, helloText17}, {helloLangAR, helloText18}, {helloLangAR, helloText19},
+  {helloLangAM, helloText20}, {helloLangAM, helloText21}, {helloLangAM, helloText22}, {helloLangAM, helloText23}, {helloLangAM, helloText24},
+  {helloLangTL, helloText25}, {helloLangTL, helloText26}, {helloLangTL, helloText27}, {helloLangTL, helloText28}, {helloLangTL, helloText29}
+};
+
+const uint8_t helloPhraseCount = sizeof(helloEntries) / sizeof(helloEntries[0]);
+const uint8_t helloLangCount = 6;
+const uint8_t helloWordsPerLang = 5;
+uint8_t helloLangIndex = 0;
+uint8_t helloWordIndex = 0;
+uint8_t helloIndex = 0;
+char helloLangBuf[10] = "English";
+char helloBuf[17] = "Hello";
 
 // -------------------------
 // HELPERS
@@ -212,42 +284,43 @@ void greenOnly() {
 void diceNextPreset() {
   for (uint8_t i = 0; i < dndPresetCount; i++) {
     uint16_t p = pgm_read_word(&dndPresets[i]);
-    if (p > diceSides) { diceSides = p; return; }
+    if (p > diceSides) { setDiceSides(p); return; }
   }
-  diceSides = pgm_read_word(&dndPresets[0]);  // wrap to d2
+  setDiceSides(pgm_read_word(&dndPresets[0]));  // wrap to d2
 }
 void dicePrevPreset() {
   for (int8_t i = dndPresetCount - 1; i >= 0; i--) {
     uint16_t p = pgm_read_word(&dndPresets[i]);
-    if (p < diceSides) { diceSides = p; return; }
+    if (p < diceSides) { setDiceSides(p); return; }
   }
-  diceSides = pgm_read_word(&dndPresets[dndPresetCount - 1]);  // wrap to d100
+  setDiceSides(pgm_read_word(&dndPresets[dndPresetCount - 1]));  // wrap to d100
 }
+
+// Dice edit mode removed - always use arrows to select
+
+
+const __FlashStringHelper* getCounterSourceLabel(CounterBoolSource s) {
+  switch (s) {
+    case CNT_SRC_PIR:        return F("PIR");
+    case CNT_SRC_LDR_HIGH:   return F("LDR>");
+    case CNT_SRC_SOUND_HIGH: return F("SND>");
+    default:                 return F("PIR");
+  }
+}
+
+int getCounterDefaultThreshold(CounterBoolSource s) {
+  if (s == CNT_SRC_LDR_HIGH) return 250;
+  if (s == CNT_SRC_SOUND_HIGH) return 100;
+  return 0;
+}
+
+bool readCounterBoolState(int pirState, int lightValue, int soundValue) {
+  if (counterSource == CNT_SRC_PIR) return pirState == HIGH;
+  if (counterSource == CNT_SRC_LDR_HIGH) return lightValue > counterBoolThreshold;
+  return soundValue > counterBoolThreshold;
+}
+
 // ----------------------
-
-void showTrackLcd() {
-  static bool lastRun = false;
-  static uint32_t lastSample = 0xFFFFFFFF;
-  if (trackRunning == lastRun && trackSampleNum == lastSample) return;
-  lastRun = trackRunning;
-  lastSample = trackSampleNum;
-
-  lcd.setCursor(0, 0);
-  lcd.print(F("                "));
-  lcd.setCursor(0, 1);
-  lcd.print(F("                "));
-  lcd.setCursor(0, 0);
-  if (!trackRunning) {
-    lcd.print(F("Track  Stopped"));
-    lcd.setCursor(0, 1);
-    lcd.print(F("Play Start Log"));
-  } else {
-    lcd.print(F("Track #"));
-    lcd.print(trackSampleNum);
-    lcd.setCursor(0, 1);
-    lcd.print(F("Play Stop Log"));
-  }
-}
 
 void showManualTestLcd() {
   static uint16_t lastMask = 0xFFFF;
@@ -264,29 +337,30 @@ void showManualTestLcd() {
   lcd.print(F("                "));
   lcd.setCursor(0, 0);
   if (testEffect == TEST_SOLID) {
-    lcd.print(F("FX Solid "));
+    lcd.print(F("LED Solid "));
     lcd.print(testBarCount);
-  } else if (testEffect == TEST_KNIGHT) {
-    lcd.print(F("FX Knight "));
-    lcd.print(testAnimRun ? F("Run") : F("Stop"));
+  } else if (testEffect == TEST_SCANNER) {
+    lcd.print(F("LED Scan "));
+    lcd.print(testAnimRun ? F("On") : F("Off"));
   } else {
-    lcd.print(F("FX Spark  "));
-    lcd.print(testAnimRun ? F("Run") : F("Stop"));
+    lcd.print(F("LED Traffic "));
+    lcd.print(testAnimRun ? F("On") : F("Off"));
   }
 
   lcd.setCursor(0, 1);
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   if (testEffect == TEST_SOLID) {
-    lcd.print(F("1-9 Tgl Up/Dn"));
+    lcd.print(F("1-9 Toggle U/D"));
   } else {
-    lcd.print(F("F/R Eff P Run"));
+    lcd.print(F("Play Run Fwd Rev"));
   }
 }
 
 void showSerialMsgLcd() {
   static char last1[17] = "";
   static char last2[17] = "";
+
   if (strncmp(last1, serialMsgLine1, 16) == 0 && strncmp(last2, serialMsgLine2, 16) == 0) return;
   strncpy(last1, serialMsgLine1, 16); last1[16] = '\0';
   strncpy(last2, serialMsgLine2, 16); last2[16] = '\0';
@@ -299,6 +373,96 @@ void showSerialMsgLcd() {
   lcd.print(F("                "));
   lcd.setCursor(0, 1);
   lcd.print(serialMsgLine2);
+}
+
+int getCounterTypedValue() {
+  int v = atoi(counterBuf);
+  return counterEntryNegative ? -v : v;
+}
+
+void showCounterLcd() {
+  static int lastVal = 2147483647;
+  static bool lastEntry = false;
+  static bool lastNeg = false;
+  static char lastBuf[7] = "";
+  static int lastThr = -1;
+  static CounterBoolSource lastSrc = (CounterBoolSource)255;
+  if (counterValue == lastVal && counterNumEntry == lastEntry && counterEntryNegative == lastNeg &&
+      strcmp(counterBuf, lastBuf) == 0 && counterBoolThreshold == lastThr && counterSource == lastSrc) return;
+  lastVal = counterValue;
+  lastEntry = counterNumEntry;
+  lastNeg = counterEntryNegative;
+  strncpy(lastBuf, counterBuf, sizeof(lastBuf));
+  lastThr = counterBoolThreshold;
+  lastSrc = counterSource;
+
+  lcd.setCursor(0, 0);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 0);
+  lcd.print(F("Cnt: "));
+  if (counterNumEntry) {
+    if (counterEntryNegative) lcd.print(F("-"));
+    lcd.print(counterBuf);
+    lcd.print(F("_"));
+  } else {
+    lcd.print(counterValue);
+  }
+
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("EQ Src "));
+  lcd.print(getCounterSourceLabel(counterSource));
+  if (counterSource != CNT_SRC_PIR) {
+    lcd.print(counterBoolThreshold);
+  }
+}
+
+void loadHelloPhrase(uint8_t idx) {
+  if (idx >= helloPhraseCount) idx = 0;
+  helloIndex = idx;
+  helloLangIndex = idx / helloWordsPerLang;
+  helloWordIndex = idx % helloWordsPerLang;
+  PGM_P langPtr = (PGM_P)pgm_read_word(&helloEntries[helloIndex].lang);
+  PGM_P textPtr = (PGM_P)pgm_read_word(&helloEntries[helloIndex].text);
+  strcpy_P(helloLangBuf, langPtr);
+  strcpy_P(helloBuf, textPtr);
+}
+
+void loadHelloByLangWord(uint8_t langIdx, uint8_t wordIdx) {
+  if (langIdx >= helloLangCount) langIdx = 0;
+  if (wordIdx >= helloWordsPerLang) wordIdx = 0;
+  uint8_t idx = (uint8_t)(langIdx * helloWordsPerLang + wordIdx);
+  loadHelloPhrase(idx);
+}
+
+void showHelloLcd() {
+  static uint8_t lastIdx = 255;
+  if (lastIdx == helloIndex) return;
+  lastIdx = helloIndex;
+
+  lcd.setCursor(0, 0);
+  lcd.print(F("                "));
+  lcd.setCursor(0, 1);
+  lcd.print(F("                "));
+
+  lcd.setCursor(0, 0);
+  lcd.print(helloLangBuf);
+  lcd.setCursor(11, 0);
+  lcd.print(F("L"));
+  lcd.print((int)helloLangIndex + 1);
+  lcd.print(F("W"));
+  lcd.print((int)helloWordIndex + 1);
+
+  lcd.setCursor(0, 1);
+  lcd.print(helloBuf);
+}
+
+void serialSendQuickReply(const char* text) {
+  Serial.print(F("REPLY: "));
+  Serial.println(text);
+  strncpy(serialMsgLine2, text, 16);
+  serialMsgLine2[16] = '\0';
 }
 
 void processSerialMessageLine(const char* line) {
@@ -423,82 +587,6 @@ void showTempOnLcd() {
   lcd.print(getTempUnitName(u2));
 }
 
-void showSettingsLcd() {
-  static int lastBright = -1;
-  static int lastDark = -1;
-  static int lastSound = -1;
-  static int lastParam = -1;
-  static int lastMode = -1;
-  static int lastHelpView = -1;
-  static int lastHelpPage = -1;
-
-  int helpTick = (int)(millis() / 2500UL);
-  int helpView = helpTick & 1;        // 0 = values, 1 = help
-  int helpPage = helpTick % 3;        // 0..2 command hints
-
-  if (brightValue == lastBright && darkValue == lastDark && soundCeiling == lastSound &&
-      settingsParam == lastParam && (int)currentMode == lastMode &&
-      helpView == lastHelpView && helpPage == lastHelpPage) {
-    return;
-  }
-
-  lastBright = brightValue;
-  lastDark = darkValue;
-  lastSound = soundCeiling;
-  lastParam = settingsParam;
-  lastMode = (int)currentMode;
-  lastHelpView = helpView;
-  lastHelpPage = helpPage;
-
-  lcd.setCursor(0, 0);
-  lcd.print(F("                "));
-  lcd.setCursor(0, 1);
-  lcd.print(F("                "));
-  lcd.setCursor(0, 0);
-
-  if (helpView == 1) {
-    lcd.print(F("Eq Settings"));
-    lcd.setCursor(0, 1);
-    if (helpPage == 0) {
-      lcd.print(F("Up Down Adjust"));
-    } else if (helpPage == 1) {
-      lcd.print(F("Fwd Rev Param"));
-    } else {
-      lcd.print(F("Func Defaults"));
-    }
-    return;
-  }
-
-  if (currentMode == MODE_SOUND_BAR) {
-    // Sound Bar: param 0 = SndCeil, param 1 = Bright
-    if (settingsParam == 0) {
-      lcd.print(F(">SndCeil:"));
-      lcd.print(soundCeiling);
-      lcd.setCursor(0, 1);
-      lcd.print(F(" Bright: "));
-      lcd.print(brightValue);
-    } else {
-      lcd.print(F(" SndCeil:"));
-      lcd.print(soundCeiling);
-      lcd.setCursor(0, 1);
-      lcd.print(F(">Bright: "));
-      lcd.print(brightValue);
-    }
-  } else if (settingsParam == 0) {
-    lcd.print(F(">Bright: "));
-    lcd.print(brightValue);
-    lcd.setCursor(0, 1);
-    lcd.print(F(" Dark:   "));
-    lcd.print(darkValue);
-  } else {
-    lcd.print(F(" Bright: "));
-    lcd.print(brightValue);
-    lcd.setCursor(0, 1);
-    lcd.print(F(">Dark:   "));
-    lcd.print(darkValue);
-  }
-}
-
 // ---- Dice LCD ----
 void showDiceLcd() {
   static DiceState lastDState  = (DiceState)255;
@@ -508,13 +596,11 @@ void showDiceLcd() {
 
   bool changed = (diceState    != lastDState  ||
                   diceResult   != lastDResult ||
-                  diceSides    != lastDSides  ||
-                  diceNumEntry != lastDNum);
+                  diceSides    != lastDSides);
   if (!changed) return;
   lastDState  = diceState;
   lastDResult = diceResult;
   lastDSides  = diceSides;
-  lastDNum    = diceNumEntry;
 
   lcd.setCursor(0, 0);
   lcd.print(F("                "));
@@ -523,11 +609,11 @@ void showDiceLcd() {
   lcd.setCursor(0, 0);
 
   if (diceState == DICE_ROLLING) {
-    lcd.print(F("Rolling d"));
+    lcd.print(F("Rolling D"));
     lcd.print(diceSides);
     lcd.print(F("..."));
   } else if (diceState == DICE_RESULT) {
-    lcd.print(F("d"));
+    lcd.print(F("D"));
     lcd.print(diceSides);
     lcd.setCursor(7, 0);
     lcd.print(F("=> "));
@@ -536,32 +622,16 @@ void showDiceLcd() {
     lcd.print(F("Play Reroll"));
   } else {
     // DICE_SELECT
-    lcd.print(F("> d"));
-    if (diceNumEntry) {
-      lcd.print(diceNumBuf);
-      lcd.print(F("_"));
-    } else {
-      lcd.print(diceSides);
-    }
+    lcd.print(F("> D"));
+    lcd.print(diceSides);
     lcd.setCursor(0, 1);
-    if (diceNumEntry) {
-      lcd.print(F("Play Set Rev Del"));
-    } else {
-      int help = (int)((millis() / 2200UL) % 3);
-      if (help == 0) {
-        lcd.print(F("Play Roll"));
-      } else if (help == 1) {
-        lcd.print(F("F/R Common Eq+"));
-      } else {
-        lcd.print(F("0-9 Custom"));
-      }
-    }
+    lcd.print(F("UP/DN  Play"));
   }
 }
 // ------------------
 
 void showIdleMenu() {
-  int page = (millis() / 2500) % 7;
+  int page = (millis() / 2500) % 8;
   if (page == lastMenuPage) {
 	return;
   }
@@ -574,43 +644,49 @@ void showIdleMenu() {
 	  lcd.setCursor(0, 0);
 	  lcd.print(F("Func Menu"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("1 Room Light"));
+	  lcd.print(F("0 Counter"));
 	  break;
 	case 1:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("2 Hallway"));
+	  lcd.print(F("1 Room Light"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("3 Streetlight"));
+	  lcd.print(F("2 Hallway"));
 	  break;
 	case 2:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("4 Eco Mode"));
+	  lcd.print(F("3 Streetlight"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("5 Smart Home"));
+	  lcd.print(F("4 Eco Mode"));
 	  break;
 	case 3:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("6 Warning Light"));
+	  lcd.print(F("5 Smart Home"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("7 Temperature"));
+	  lcd.print(F("6 Warning Light"));
 	  break;
 	case 4:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("8 Sound Bar"));
+	  lcd.print(F("7 Temperature"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("9 UV Index"));
+	  lcd.print(F("8 Sound Bar"));
 	  break;
 	case 5:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("Play Dice"));
+	  lcd.print(F("9 UV Index"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("Vol+ Track"));
+	  lcd.print(F("Play Dice"));
 	  break;
 	case 6:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("Vol- LED FX"));
+	  lcd.print(F("Vol+ Manual Test"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("Rev Serial Msg"));
+	  lcd.print(F("Vol- Serial Msg"));
+	  break;
+	case 7:
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("Fwd Counter"));
+	  lcd.setCursor(0, 1);
+	  lcd.print(F("Rev Hello"));
 	  break;
   }
 }
@@ -631,13 +707,23 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	return;
   }
 
-  if (currentMode == MODE_TRACK) {
-	showTrackLcd();
+  if (currentMode == MODE_MANUAL_TEST) {
+	showManualTestLcd();
 	return;
   }
 
-  if (currentMode == MODE_MANUAL_TEST) {
-	showManualTestLcd();
+  if (currentMode == MODE_SERIAL_MSG) {
+	showSerialMsgLcd();
+	return;
+  }
+
+  if (currentMode == MODE_COUNTER) {
+	showCounterLcd();
+	return;
+  }
+
+  if (currentMode == MODE_HELLO) {
+	showHelloLcd();
 	return;
   }
 
@@ -655,7 +741,6 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 	int raw = soundValue;
 	if (lastDisplayedSound == -1 || abs(raw - lastDisplayedSound) > 5) {
 	  lastDisplayedSound = raw;
-	  Serial.print(F("Sound:")); Serial.println(raw);
 	  lcd.setCursor(0, 0);
 	  lcd.print(F("                "));
 	  lcd.setCursor(0, 0);
@@ -675,14 +760,6 @@ void showModeOnLcd(int lightValue, int pirState, int soundValue) {
 
   if (currentMode == MODE_UV_INDEX) {
 	int raw = analogRead(uvPin);
-	static unsigned long lastUvDebug = 0;
-	if (millis() - lastUvDebug > 1000) {
-	  lastUvDebug = millis();
-	  Serial.print(F("A0:")); Serial.print(analogRead(A0));
-	  Serial.print(F(" A1:")); Serial.print(analogRead(A1));
-	  Serial.print(F(" A2:")); Serial.print(analogRead(A2));
-	  Serial.print(F(" A3:")); Serial.println(analogRead(A3));
-	}
 	if (lastDisplayedUV == -1 || abs(raw - lastDisplayedUV) > 3) {
 	  lastDisplayedUV = raw;
 	  lcd.setCursor(0, 0);
@@ -811,28 +888,18 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 
 	// Street light: only turn on if dark AND motion detected
 	if (pirState != lastPirStateMode3 || streetState != lastStreetStateMode3) {
-	  Serial.print(F("Mode3: PIR="));
-	  Serial.print(pirState);
-	  Serial.print(F(" Light="));
-	  Serial.print(lightValue);
-	  Serial.print(F(" Bright="));
-	  Serial.print(brightValue);
-	  Serial.print(F(" State="));
-	  Serial.println(streetState);
 	  lastPirStateMode3 = pirState;
 	  lastStreetStateMode3 = streetState;
 	}
 
 	if (pirState == HIGH && lightValue < brightValue) {
 	  // Motion detected in dark - turn on
-	  if (streetState != STREET_ON) Serial.println(F("-> STREET_ON"));
 	  streetState = STREET_ON;
 	  allOn();
 	} else if (streetState == STREET_COLLAPSING) {
 	  // Already collapsing - let it finish regardless of light level
 	  unsigned long elapsed = millis() - streetCollapseStartTime;
 	  if (elapsed >= 10000) {
-		Serial.println(F("-> Collapse done, OFF"));
 		streetState = STREET_OFF;
 		allOff();
 	  } else {
@@ -841,7 +908,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	  }
 	} else if (pirState == LOW && streetState == STREET_ON) {
 	  // Motion stopped and we were on - start collapse
-	  Serial.println(F("-> Starting collapse"));
 	  streetState = STREET_COLLAPSING;
 	  streetCollapseStartTime = millis();
 	} else if (streetState == STREET_OFF && lightValue >= brightValue) {
@@ -857,10 +923,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	static int lastLightMode4 = -1;
 
 	if (pirState != lastPirMode4 || abs(lightValue - lastLightMode4) > 100) {
-	  Serial.print(F("Mode4: PIR="));
-	  Serial.print(pirState);
-	  Serial.print(F(" Light="));
-	  Serial.println(lightValue);
 	  lastPirMode4 = pirState;
 	  lastLightMode4 = lightValue;
 	}
@@ -910,14 +972,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	static WakeUpState lastWakeState = WAKE_OFF;
 
 	if (pirState != lastPirMode5 || abs(lightValue - lastLightMode5) > 100 || wakeUpState != lastWakeState) {
-	  Serial.print(F("Mode5: PIR="));
-	  Serial.print(pirState);
-	  Serial.print(F(" Light="));
-	  Serial.print(lightValue);
-	  Serial.print(F(" Dark="));
-	  Serial.print(roomDark(lightValue));
-	  Serial.print(F(" State="));
-	  Serial.println(wakeUpState);
 	  lastPirMode5 = pirState;
 	  lastLightMode5 = lightValue;
 	  lastWakeState = wakeUpState;
@@ -932,7 +986,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	if (wakeUpState == WAKE_OFF) {
 	  // Only start if dark and motion detected
 	  if (pirState == HIGH && roomDark(lightValue)) {
-		Serial.println(F("-> Starting sunrise (10s)"));
 		wakeUpState = WAKE_RISING;
 		wakeUpStartTime = millis();
 	  } else {
@@ -942,7 +995,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	  // Rising animation (10 seconds) - continue regardless of light level
 	  unsigned long elapsed = millis() - wakeUpStartTime;
 	  if (elapsed >= 10000) {
-		Serial.println(F("-> Sunrise complete, fully ON"));
 		wakeUpState = WAKE_ON;
 		allOn();
 	  } else {
@@ -953,7 +1005,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	  // Stay fully on while occupied - continue regardless of light level
 	  allOn();
 	  if (millis() - wakeUpLastMotionTime >= 20000) {
-		Serial.println(F("-> Starting sunset (10s)"));
 		wakeUpState = WAKE_FALLING;
 		wakeUpStartTime = millis();
 	  }
@@ -964,15 +1015,11 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 		unsigned long elapsed = millis() - wakeUpStartTime;
 		int currentLedCount = 9 - (int)((elapsed * 9) / 10000);
 		wakeUpBounceFromCount = currentLedCount;
-		Serial.print(F("-> Motion during sunset at LED "));
-		Serial.print(currentLedCount);
-		Serial.println(F(", bouncing back!"));
 		wakeUpState = WAKE_BOUNCING;
 		wakeUpStartTime = millis();
 	  } else {
 		unsigned long elapsed = millis() - wakeUpStartTime;
 		if (elapsed >= 10000) {
-		  Serial.println(F("-> Sunset complete, OFF"));
 		  wakeUpState = WAKE_OFF;
 		  allOff();
 		} else {
@@ -985,14 +1032,12 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 	  int ledsToAdd = 9 - wakeUpBounceFromCount;  // How many LEDs to turn back on
 	  if (ledsToAdd == 0) {
 		// Already at 9, just go to ON
-		Serial.println(F("-> Bounce complete, fully ON"));
 		wakeUpState = WAKE_ON;
 		allOn();
 	  } else {
 		unsigned long bounceDuration = ledsToAdd * 500;  // 500ms per LED
 		unsigned long elapsed = millis() - wakeUpStartTime;
 		if (elapsed >= bounceDuration) {
-		  Serial.println(F("-> Bounce complete, fully ON"));
 		  wakeUpState = WAKE_ON;
 		  allOn();
 		} else {
@@ -1007,27 +1052,20 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 
   // Mode 6: Night Warning - Adaptive LED cycling pattern
   if (currentMode == MODE_NIGHT_WARNING) {
-	static int lastPirMode6 = -1;
-	static int lastLightMode6 = -1;
-	static WarnState lastWarnState = WARN_IDLE;
+  static int lastPirMode6 = -1;
+  static int lastLightMode6 = -1;
+  static WarnState lastWarnState = WARN_IDLE;
 
-	if (pirState != lastPirMode6 || abs(lightValue - lastLightMode6) > 100 || warnState != lastWarnState) {
-	  Serial.print(F("Mode6: PIR="));
-	  Serial.print(pirState);
-	  Serial.print(F(" Light="));
-	  Serial.print(lightValue);
-	  Serial.print(F(" State="));
-	  Serial.println(warnState);
-	  lastPirMode6 = pirState;
-	  lastLightMode6 = lightValue;
-	  lastWarnState = warnState;
-	}
+  if (pirState != lastPirMode6 || abs(lightValue - lastLightMode6) > 100 || warnState != lastWarnState) {
+	lastPirMode6 = pirState;
+	lastLightMode6 = lightValue;
+	lastWarnState = warnState;
+  }
 
 	// Update motion timer
 	if (pirState == HIGH) {
 	  warnLastMotionTime = millis();
 	  if (warnState == WARN_IDLE || warnState == WARN_COUNTDOWN) {
-		Serial.println(F("-> Starting warning cycle"));
 		warnState = WARN_INTRO;
 		warnStepTime = millis();
 		warnLedIndex = 0;
@@ -1074,10 +1112,8 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 
 	  // Check if we should transition states
 	  if (warnState != WARN_COUNTDOWN && millis() - warnLastMotionTime >= 10000) {
-		Serial.println(F("-> Starting countdown (lights still scanning)"));
 		warnState = WARN_COUNTDOWN;
 	  } else if (warnState == WARN_COUNTDOWN && millis() - warnLastMotionTime >= 20000) {
-		Serial.println(F("-> Countdown complete, IDLE"));
 		warnState = WARN_IDLE;
 		allOff();
 	  }
@@ -1143,67 +1179,51 @@ void applyMode(int pirState, int lightValue, int soundValue) {
     } else {
       allOff();
     }
-    return;
-  }
-
-  // Mode 11: Track Logger - stream CSV to Serial, blink LEDs while recording
-  if (currentMode == MODE_TRACK) {
-	if (trackRunning) {
-	  unsigned long now = millis();
-	  if (now - trackLastSample >= TRACK_INTERVAL_MS) {
-		trackLastSample = now;
-		trackSampleNum++;
-		int ldr   = analogRead(ldrPin);
-		int snd   = analogRead(soundPin);
-		int pir   = digitalRead(pirPin);
-		float tmp = readTempC();
-		// CSV: sample#, ms, ldr, sound, pir, tempC
-		Serial.print(trackSampleNum); Serial.print(',');
-		Serial.print(now);            Serial.print(',');
-		Serial.print(ldr);            Serial.print(',');
-		Serial.print(snd);            Serial.print(',');
-		Serial.print(pir);            Serial.print(',');
-		Serial.println(tmp, 1);
-		// heartbeat styles
-		if (trackHeartbeatStyle == 0) {
-		  digitalWrite(ledPins[0], (trackSampleNum & 1) ? HIGH : LOW);
-		} else {
-		  // double pulse-ish pattern on LED0/LED1
-		  digitalWrite(ledPins[0], HIGH);
-		  digitalWrite(ledPins[1], (trackSampleNum & 1) ? HIGH : LOW);
-		}
-		// refresh LCD counter every 5 samples to save redraws
-		if (trackSampleNum % 5 == 0) showTrackLcd();
-	  }
-	} else {
-	  allOff();
-	}
 	return;
   }
 
-  // Mode 12: Manual LED Test
+  // Mode 11: Manual LED Test
   if (currentMode == MODE_MANUAL_TEST) {
 	if (testEffect == TEST_SOLID || !testAnimRun) {
 	  for (int i = 0; i < 9; i++) {
 		bool on = ((testLedMask >> i) & 0x01) != 0;
 		digitalWrite(ledPins[i], on ? HIGH : LOW);
 	  }
-	} else if (millis() - testStepAt >= 120) {
+	} else if (testEffect == TEST_SCANNER && millis() - testStepAt >= 120) {
 	  testStepAt = millis();
-	  if (testEffect == TEST_KNIGHT) {
-		allOff();
-		digitalWrite(ledPins[testKnightPos], HIGH);
-		if (testKnightPos == 8) testKnightDir = -1;
-		else if (testKnightPos == 0) testKnightDir = 1;
-		testKnightPos = (uint8_t)((int)testKnightPos + testKnightDir);
-	  } else if (testEffect == TEST_SPARKLE) {
-		testLedMask ^= (uint16_t)(1U << random(0, 9));
-		for (int i = 0; i < 9; i++) {
-		  bool on = ((testLedMask >> i) & 0x01) != 0;
-		  digitalWrite(ledPins[i], on ? HIGH : LOW);
-		}
+	  allOff();
+	  digitalWrite(ledPins[testKnightPos], HIGH);
+	  if (testKnightPos == 8) testKnightDir = -1;
+	  else if (testKnightPos == 0) testKnightDir = 1;
+	  testKnightPos = (uint8_t)((int)testKnightPos + testKnightDir);
+	} else if (testEffect == TEST_TRAFFIC && millis() - testStepAt >= 500) {
+	  testStepAt = millis();
+	  allOff();
+	  uint8_t phase = (uint8_t)(testKnightPos & 0x03);
+	  if (phase == 0) {
+		digitalWrite(ledPins[6], HIGH); digitalWrite(ledPins[7], HIGH); digitalWrite(ledPins[8], HIGH);
+	  } else if (phase == 1) {
+		digitalWrite(ledPins[3], HIGH); digitalWrite(ledPins[4], HIGH); digitalWrite(ledPins[5], HIGH);
+		digitalWrite(ledPins[6], HIGH); digitalWrite(ledPins[7], HIGH); digitalWrite(ledPins[8], HIGH);
+	  } else if (phase == 2) {
+		digitalWrite(ledPins[0], HIGH); digitalWrite(ledPins[1], HIGH); digitalWrite(ledPins[2], HIGH);
+	  } else {
+		digitalWrite(ledPins[3], HIGH); digitalWrite(ledPins[4], HIGH); digitalWrite(ledPins[5], HIGH);
 	  }
+	  testKnightPos = (uint8_t)((testKnightPos + 1) & 0x03);
 	}
+	return;
+  }
+
+  // Mode 13: Counter auto-edge count from selected bool source
+  if (currentMode == MODE_COUNTER) {
+	bool nowState = readCounterBoolState(pirState, lightValue, soundValue);
+	if (nowState && !counterLastState) {
+	  counterValue++;
+	}
+	counterLastState = nowState;
+	digitalWrite(ledPins[0], nowState ? HIGH : LOW);
+	for (int i = 1; i < 9; i++) digitalWrite(ledPins[i], LOW);
 	return;
   }
 
@@ -1271,9 +1291,6 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 }
 
 void setMode(ProgramMode mode) {
-  Serial.print(F("setMode called: "));
-  Serial.println((int)mode);
-
   currentMode = mode;
   lastDisplayedMode = -1;
   lastDisplayedPresence = -1;
@@ -1299,12 +1316,6 @@ void setMode(ProgramMode mode) {
   lastDisplayedUV    = -1;
   diceState    = DICE_SELECT;
   diceResult   = 0;
-  diceNumEntry = false;
-  diceNumLen   = 0;
-  diceNumBuf[0] = '\0';
-  trackRunning   = false;
-  trackSampleNum = 0;
-  trackLastSample = 0;
   testLedMask   = 0;
   testBarCount  = 0;
   testEffect    = TEST_SOLID;
@@ -1314,10 +1325,17 @@ void setMode(ProgramMode mode) {
   testKnightDir = 1;
   diceCritFlashUntil = 0;
   diceCritFlashPhase = 0;
+  counterNumEntry = false;
+  counterEntryNegative = false;
+  counterLen = 0;
+  counterBuf[0] = '\0';
+  counterLastState = false;
+  helloIndex = 0;
+  loadHelloPhrase(0);
   serialMsgLine1[0] = '\0';
   serialMsgLine2[0] = '\0';
   strncpy(serialMsgLine1, "Serial Msg Mode", 16); serialMsgLine1[16] = '\0';
-  strncpy(serialMsgLine2, "Send: L1|L2", 16); serialMsgLine2[16] = '\0';
+  strncpy(serialMsgLine2, "1Y 2N 3M 4R", 16); serialMsgLine2[16] = '\0';
   serialMsgLen = 0;
 
   // SD logging removed to save RAM
@@ -1405,6 +1423,8 @@ void loop() {
 	IrReceiver.resume();
 
 	if (addr == IR_ADDR) {
+	  uint8_t prevIrCode = lastIrCode;
+	  unsigned long prevIrTime = lastIrTime;
 	  bool sameCode = (cmd == lastIrCode) && (millis() - lastIrTime < 350);
 	  if (!sameCode) {
 		lastIrCode = cmd;
@@ -1415,7 +1435,10 @@ void loop() {
 		  lcdOn = true;
 		  lcd.backlight();
 		  if (inSettings) {
-			showSettingsLcd();
+			if (currentMode == MODE_DICE) showDiceLcd();
+			else if (currentMode == MODE_COUNTER) showCounterLcd();
+			else if (currentMode == MODE_SERIAL_MSG) showSerialMsgLcd();
+			else if (currentMode == MODE_HELLO) showHelloLcd();
 		  } else {
 			lastDisplayedMode = -1;  // force redraw without changing mode
 		  }
@@ -1424,169 +1447,151 @@ void loop() {
 		}
 
 		if (cmd == CMD_EQ) {
-		  if (millis() - lastEqToggleTime < 600) {
-			return;
-		  }
-		  lastEqToggleTime = millis();
-		  if (inSettings) {
-			inSettings = false;
-			setMode(currentMode);
-			Serial.println(F("Settings exit"));
-		  } else if (currentMode == MODE_IDLE ||
-					 currentMode == MODE_TEMPERATURE ||
-					 currentMode == MODE_UV_INDEX ||
-					 currentMode == MODE_TRACK ||
-					 currentMode == MODE_MANUAL_TEST ||
-					 currentMode == MODE_SERIAL_MSG) {
-			Serial.println(F("EQ not available"));
-		  } else {
-			inSettings = true;
-			// Sound Bar: param 0 = soundCeiling; others: param 0 = brightValue
-			settingsParam = 0;
-			showSettingsLcd();
-			Serial.println(F("Settings menu"));
-		  }
-		} else if (inSettings && cmd == CMD_UP) {
-		  if (currentMode == MODE_SOUND_BAR && settingsParam == 0) {
-			soundCeiling = min(soundCeiling + 25, 1023);
-		  } else if (settingsParam == 0) { brightValue = min(brightValue + 10, 1023); }
-		  else                           { darkValue   = min(darkValue   + 10, 1023); }
-		  showSettingsLcd();
-		  Serial.print(F("Bright:")); Serial.print(brightValue);
-		  Serial.print(F(" Dark:")); Serial.print(darkValue);
-		  Serial.print(F(" SndCeil:")); Serial.println(soundCeiling);
-		} else if (inSettings && cmd == CMD_DOWN) {
-		  if (currentMode == MODE_SOUND_BAR && settingsParam == 0) {
-			soundCeiling = max(soundCeiling - 25, 25);
-		  } else if (settingsParam == 0) { brightValue = max(brightValue - 10, 0); }
-		  else                           { darkValue   = max(darkValue   - 10, 0); }
-		  showSettingsLcd();
-		  Serial.print(F("Bright:")); Serial.print(brightValue);
-		  Serial.print(F(" Dark:")); Serial.print(darkValue);
-		  Serial.print(F(" SndCeil:")); Serial.println(soundCeiling);
-		} else if (inSettings && currentMode == MODE_DICE && cmd == CMD_UP) {
-		  diceNextPreset();
-		  showDiceLcd();
-		  Serial.print(F("Dice preset: d")); Serial.println(diceSides);
-		} else if (inSettings && currentMode == MODE_DICE && cmd == CMD_DOWN) {
-		  dicePrevPreset();
-		  showDiceLcd();
-		  Serial.print(F("Dice preset: d")); Serial.println(diceSides);
-		} else if (inSettings && currentMode == MODE_DICE && cmd == CMD_EQ) {
-		  // exit dice preset selector
-		  inSettings = false;
-		  showDiceLcd();
-		  Serial.println(F("Dice preset exit"));
-		} else if (inSettings && cmd == CMD_FORWARD) {
-		  settingsParam = 1; showSettingsLcd();
-		} else if (inSettings && cmd == CMD_REVERSE) {
-		  settingsParam = 0; showSettingsLcd();
+		  // EQ/settings removed on UNO build
+		  return;
+		} else if (currentMode == MODE_HELLO && !inSettings && cmd == CMD_UP) {
+		  loadHelloByLangWord(helloLangIndex, (uint8_t)((helloWordIndex + 1) % helloWordsPerLang));
+		  showHelloLcd();
+		} else if (currentMode == MODE_HELLO && !inSettings && cmd == CMD_DOWN) {
+		  loadHelloByLangWord(helloLangIndex, (uint8_t)((helloWordIndex + helloWordsPerLang - 1) % helloWordsPerLang));
+		  showHelloLcd();
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_UP) {
-		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; }
-		  diceSides = constrain(diceSides + 1, 2, 1000);
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+		  setDiceSides(diceSides + 1);
 		  showDiceLcd();
-		  Serial.print(F("Dice sides: ")); Serial.println(diceSides);
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_DOWN) {
-		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; }
-		  diceSides = constrain(diceSides - 1, 2, 1000);
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+		  setDiceSides(diceSides - 1);
 		  showDiceLcd();
-		  Serial.print(F("Dice sides: ")); Serial.println(diceSides);
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_FORWARD) {
-		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumEntry = false; diceNumLen = 0; diceNumBuf[0] = '\0'; }
-		  diceNextPreset();
+		  // FORWARD disabled - use UP arrow instead
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
 		  showDiceLcd();
-		  Serial.print(F("Dice preset: d")); Serial.println(diceSides);
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_REVERSE) {
-		  if (diceNumEntry && diceNumLen > 0) {
-			// Backspace
-			diceNumBuf[--diceNumLen] = '\0';
-			if (diceNumLen == 0) diceNumEntry = false;
-			showDiceLcd();
-		  } else {
-			if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
-			dicePrevPreset();
-			showDiceLcd();
-			Serial.print(F("Dice preset: d")); Serial.println(diceSides);
-		  }
-		} else if (currentMode == MODE_DICE && !inSettings &&
-				   (cmd == CMD_0 || (cmd >= CMD_1 && cmd <= CMD_9))) {
-		  // Number key — start or continue typing a custom die size
-		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; diceNumLen = 0; diceNumBuf[0] = '\0'; }
-		  if (!diceNumEntry) { diceNumEntry = true; diceNumLen = 0; diceNumBuf[0] = '\0'; }
-		  if (diceNumLen < 4) {
-			uint8_t digit = 0;
-			switch (cmd) {
-			  case CMD_0: digit=0; break; case CMD_1: digit=1; break; case CMD_2: digit=2; break;
-			  case CMD_3: digit=3; break; case CMD_4: digit=4; break; case CMD_5: digit=5; break;
-			  case CMD_6: digit=6; break; case CMD_7: digit=7; break; case CMD_8: digit=8; break;
-			  case CMD_9: digit=9; break;
-			}
-			diceNumBuf[diceNumLen++] = '0' + digit;
-			diceNumBuf[diceNumLen]   = '\0';
-			showDiceLcd();
-		  }
+		  // REVERSE disabled - use DOWN arrow instead
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+		  showDiceLcd();
+		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_0) {
+		  // 0 button disabled - just use arrows to select
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+		  showDiceLcd();
+		} else if (currentMode == MODE_DICE && !inSettings && (cmd >= CMD_1 && cmd <= CMD_9)) {
+		  // Digit commands ignored - use arrows instead
+		  if (diceState != DICE_SELECT) { diceState = DICE_SELECT; }
+		  showDiceLcd();
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_PLAY) {
-		  // Confirm any typed number, then roll
-		  if (diceNumEntry && diceNumLen > 0) {
-			uint16_t newSides = (uint16_t)constrain((int)atoi(diceNumBuf), 2, 1000);
-			diceSides    = newSides;
-			diceNumEntry = false;
-			diceNumLen   = 0;
-			diceNumBuf[0] = '\0';
-		  }
+		  // Roll the dice
 		  diceState     = DICE_ROLLING;
 		  diceRollStart = millis();
 		  showDiceLcd();
-		  Serial.print(F("Roll d")); Serial.println(diceSides);
 		} else if (currentMode == MODE_DICE && !inSettings && cmd == CMD_FUNC) {
-		  // Keep 0 as numeric entry in Dice; use FUNC as quick exit to menu
+		  // FUNC is menu - exit to idle
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
 		  ledsOff = false;
 		  setMode(MODE_IDLE);
 		  Serial.println(F("FUNC -> Menu"));
 		} else if (!inSettings && cmd == CMD_FUNC) {
-		  if (currentMode == MODE_DICE) {
-			// Dice uses FUNC for quick menu exit so 0 can stay numeric
-			if (!lcdOn) { lcdOn = true; lcd.backlight(); }
-			holdDisplay = false;
-			ledsOff = false;
-			setMode(MODE_IDLE);
-			Serial.println(F("FUNC -> Menu"));
+		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
+		  holdDisplay = false;
+		  ledsOff = false;
+		  setMode(MODE_IDLE);
+		  Serial.println(F("FUNC -> Menu"));
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_UP) {
+		  counterValue++;
+		  counterNumEntry = false;
+		  counterEntryNegative = false;
+		  showCounterLcd();
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_DOWN) {
+		  if (!counterNumEntry || counterLen == 0) {
+			counterValue--;
+			counterNumEntry = false;
+			counterEntryNegative = false;
 		  } else {
-			ledsOff = !ledsOff;
-			if (ledsOff) {
-			  allOff();
-			} else {
-			  int pir = digitalRead(pirPin);
-			  applyMode(pir, smoothedLightValue, analogRead(soundPin));
-			  lastDisplayedMode = -1;
+			counterEntryNegative = !counterEntryNegative;
+		  }
+		  showCounterLcd();
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_VOLDN) {
+		  counterValue = 0;
+		  counterNumEntry = false;
+		  counterEntryNegative = false;
+		  counterLen = 0;
+		  counterBuf[0] = '\0';
+		  showCounterLcd();
+		} else if (currentMode == MODE_COUNTER && !inSettings && (cmd == CMD_0 || (cmd >= CMD_1 && cmd <= CMD_9))) {
+		  if (!counterNumEntry) { counterNumEntry = true; counterLen = 0; counterBuf[0] = '\0'; }
+		  if (counterLen < sizeof(counterBuf) - 1) {
+			char digit = '0';
+			switch (cmd) {
+			  case CMD_0: digit='0'; break; case CMD_1: digit='1'; break; case CMD_2: digit='2'; break;
+			  case CMD_3: digit='3'; break; case CMD_4: digit='4'; break; case CMD_5: digit='5'; break;
+			  case CMD_6: digit='6'; break; case CMD_7: digit='7'; break; case CMD_8: digit='8'; break;
+			  case CMD_9: digit='9'; break;
 			}
-			Serial.println(ledsOff ? F("LEDs OFF") : F("LEDs ON"));
+			counterBuf[counterLen++] = digit;
+			counterBuf[counterLen] = '\0';
+			showCounterLcd();
+		  }
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_PLAY) {
+		  if (counterNumEntry && counterLen > 0) {
+			counterValue = getCounterTypedValue();
+			counterNumEntry = false;
+			counterEntryNegative = false;
+			counterLen = 0;
+			counterBuf[0] = '\0';
+			showCounterLcd();
+		  }
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_FORWARD) {
+		  if (counterNumEntry && counterLen > 0) {
+			counterValue += getCounterTypedValue();
+			counterNumEntry = false;
+			counterEntryNegative = false;
+			counterLen = 0;
+			counterBuf[0] = '\0';
+			showCounterLcd();
+		  }
+		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_REVERSE) {
+		  if (counterNumEntry && counterLen > 0) {
+			counterValue -= getCounterTypedValue();
+			counterNumEntry = false;
+			counterEntryNegative = false;
+			counterLen = 0;
+			counterBuf[0] = '\0';
+			showCounterLcd();
 		  }
 		} else if (!inSettings && cmd == CMD_0) {
-		  if (currentMode == MODE_DICE) {
+		  if (currentMode == MODE_IDLE) {
+			setMode(MODE_COUNTER);
+			Serial.println(F("0 -> Counter"));
+		  } else if (currentMode == MODE_DICE) {
 			// 0 is digit entry in Dice mode
-		  } else {
-			Serial.println(F("0 unused"));
 		  }
 		} else if (cmd == CMD_POWER) {
+		  if (prevIrCode == CMD_9 && (millis() - prevIrTime) < 900) {
+			Serial.println(F("Remote reset"));
+			delay(40);
+			asm volatile ("jmp 0");
+		  }
 		  lcdOn = !lcdOn;
 		  if (lcdOn) {
 			lcd.backlight();
 			if (inSettings) {
-			  showSettingsLcd();
+			  if (currentMode == MODE_DICE) showDiceLcd();
+			  else if (currentMode == MODE_COUNTER) showCounterLcd();
+			  else if (currentMode == MODE_SERIAL_MSG) showSerialMsgLcd();
+			  else if (currentMode == MODE_HELLO) showHelloLcd();
 			} else {
 			  lastDisplayedMode = -1;  // force redraw of current mode
 			}
-			Serial.println(F("LCD on"));
 		  } else {
 			lcd.noBacklight();
 			lcd.clear();
-			Serial.println(F("LCD off"));
 		  }
 		} else if (!inSettings && cmd == CMD_FORWARD) {
-		  if (currentMode == MODE_TEMPERATURE) {
+		  if (currentMode == MODE_IDLE) {
+			setMode(MODE_SERIAL_MSG);
+			Serial.println(F("FWD -> Serial Msg"));
+		  } else if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair forward: C/F -> K/C -> K/R -> R/F -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 1) % 4);
 			lastDisplayedTempC = -999;  // force LCD refresh
@@ -1595,15 +1600,17 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else if (currentMode == MODE_MANUAL_TEST) {
 			testEffect = (TestEffect)(((int)testEffect + 1) % 3);
+			if (testEffect == TEST_TRAFFIC) testKnightPos = 0;
 			showManualTestLcd();
 			Serial.println(F("LED FX next"));
-		  } else {
-			Serial.println(F("FWD ignored"));
+		  } else if (currentMode == MODE_HELLO) {
+			loadHelloByLangWord((uint8_t)((helloLangIndex + 1) % helloLangCount), helloWordIndex);
+			showHelloLcd();
 		  }
 		} else if (!inSettings && cmd == CMD_REVERSE) {
 		  if (currentMode == MODE_IDLE) {
-			setMode(MODE_SERIAL_MSG);
-			Serial.println(F("REV -> Serial Msg"));
+			setMode(MODE_HELLO);
+			Serial.println(F("REV -> Hello"));
 		  } else if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair backward: C/F -> R/F -> K/R -> K/C -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 3) % 4);
@@ -1613,12 +1620,14 @@ void loop() {
 			Serial.println(getTempPairLabel(tempUnitPair));
 		  } else if (currentMode == MODE_MANUAL_TEST) {
 			testEffect = (TestEffect)(((int)testEffect + 2) % 3);
+			if (testEffect == TEST_TRAFFIC) testKnightPos = 0;
 			showManualTestLcd();
 			Serial.println(F("LED FX prev"));
-		  } else {
-			Serial.println(F("REV ignored"));
+		  } else if (currentMode == MODE_HELLO) {
+			loadHelloByLangWord((uint8_t)((helloLangIndex + helloLangCount - 1) % helloLangCount), helloWordIndex);
+			showHelloLcd();
 		  }
-		} else if (!inSettings && isMappedCmd(cmd)) {
+		} else if (!inSettings && isMappedCmd(cmd) && currentMode == MODE_IDLE) {
 		  ProgramMode selectedMode = getModeFromCmd(cmd);
 		  setMode(selectedMode);
 		  Serial.print(F("Mode: "));
@@ -1627,27 +1636,10 @@ void loop() {
 		  holdDisplay = !holdDisplay;
 		  if (!holdDisplay) lastDisplayedMode = -1;
 		  Serial.println(holdDisplay ? F("Hold ON") : F("Hold OFF"));
-		} else if (inSettings && cmd == CMD_PLAY) {
-		  // PLAY is a no-op in settings -- just redraw so the screen can't go blank
-		  showSettingsLcd();
-		  Serial.println(F("PLAY ignored (settings)"));
-		} else if (currentMode == MODE_TRACK && !inSettings && cmd == CMD_PLAY) {
-		  trackRunning = !trackRunning;
-		  if (trackRunning) {
-			trackSampleNum = 0;
-			trackLastSample = millis();
-			// Print CSV header
-			Serial.println(F("sample,ms,ldr,sound,pir,tempC"));
-			Serial.println(F("---TRACK START---"));
-		  } else {
-			Serial.println(F("---TRACK STOP---"));
-		  }
-		  showTrackLcd();
 		} else if (currentMode == MODE_MANUAL_TEST && !inSettings && cmd == CMD_PLAY) {
 		  testAnimRun = !testAnimRun;
 		  if (testAnimRun) testStepAt = millis();
 		  showManualTestLcd();
-		  Serial.println(testAnimRun ? F("LED FX run") : F("LED FX stop"));
 		} else if (currentMode == MODE_MANUAL_TEST && !inSettings && cmd == CMD_UP) {
 		  testBarCount = (uint8_t)((testBarCount + 1) % 10);
 		  testLedMask = (testBarCount == 0) ? 0 : (uint16_t)((1UL << testBarCount) - 1);
@@ -1672,14 +1664,41 @@ void loop() {
 		  testLedMask = 0;
 		  testBarCount = 0;
 		  showManualTestLcd();
+		} else if (currentMode == MODE_MANUAL_TEST && !inSettings && cmd == CMD_FORWARD) {
+		  testEffect = (TestEffect)((testEffect + 1) % 3);
+		  testAnimRun = false;
+		  testKnightPos = 0;
+		  testKnightDir = 1;
+		  showManualTestLcd();
+		} else if (currentMode == MODE_MANUAL_TEST && !inSettings && cmd == CMD_REVERSE) {
+		  testEffect = (TestEffect)((testEffect + 2) % 3);
+		  testAnimRun = false;
+		  testKnightPos = 0;
+		  testKnightDir = 1;
+		  showManualTestLcd();
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_1) {
+		  serialSendQuickReply("YES");
+		  showSerialMsgLcd();
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_2) {
+		  serialSendQuickReply("NO");
+		  showSerialMsgLcd();
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_3) {
+		  serialSendQuickReply("MAYBE");
+		  showSerialMsgLcd();
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_4) {
+		  serialSendQuickReply("REPEAT");
+		  showSerialMsgLcd();
 		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_PLAY) {
 		  serialMsgLine1[0] = '\0';
 		  serialMsgLine2[0] = '\0';
 		  strncpy(serialMsgLine1, "Serial Msg Mode", 16); serialMsgLine1[16] = '\0';
-		  strncpy(serialMsgLine2, "Send: L1|L2", 16); serialMsgLine2[16] = '\0';
+		  strncpy(serialMsgLine2, "1Y 2N 3M 4R", 16); serialMsgLine2[16] = '\0';
 		  serialMsgLen = 0;
 		  showSerialMsgLcd();
-		  Serial.println(F("MSG cleared"));
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_FORWARD) {
+		  setMode(MODE_HELLO);
+		} else if (currentMode == MODE_SERIAL_MSG && !inSettings && cmd == CMD_REVERSE) {
+		  setMode(MODE_HELLO);
 		} else if (!inSettings && cmd == CMD_PLAY) {
 		  if (currentMode == MODE_IDLE) {
 			setMode(MODE_DICE);
@@ -1688,43 +1707,28 @@ void loop() {
 			ledsOff = false;
 			holdDisplay = false;
 			setMode(currentMode);
-			Serial.println(F("Mode reset"));
 		  }
 		} else if (!inSettings && cmd == CMD_VOLUP) {
 		  if (currentMode == MODE_IDLE) {
-			setMode(MODE_TRACK);
-			Serial.println(F("VOL+ -> Track"));
+			setMode(MODE_MANUAL_TEST);
 		  } else if (currentMode == MODE_SOUND_BAR) {
 			soundCeiling = min(soundCeiling + 25, 1023);
 			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
-		  } else {
-			Serial.println(F("VOL+ ignored"));
 		  }
 		} else if (!inSettings && cmd == CMD_VOLDN) {
 		  if (currentMode == MODE_IDLE) {
-			setMode(MODE_MANUAL_TEST);
-			Serial.println(F("VOL- -> LED FX"));
+			setMode(MODE_SERIAL_MSG);
 		  } else if (currentMode == MODE_SOUND_BAR) {
 			soundCeiling = max(soundCeiling - 25, 25);
 			Serial.print(F("SndCeil: ")); Serial.println(soundCeiling);
-		  } else {
-			Serial.println(F("VOL- ignored"));
 		  }
 		} else if (inSettings && cmd == CMD_FUNC) {
-		  brightValue  = DEFAULT_BRIGHT;
-		  darkValue    = DEFAULT_DARK;
-		  soundCeiling = DEFAULT_SOUND_CEIL;
-		  lcd.clear();
-		  lcd.setCursor(0, 0);
-		  lcd.print(F("Defaults set!"));
-		  lcd.setCursor(0, 1);
-		  lcd.print(F("EQ to exit"));
-		  delay(1200);
-		  showSettingsLcd();
-		  Serial.println(F("Settings defaults reset"));
-		} else {
-		  Serial.print(F("Ignored CMD: 0x"));
-		  Serial.println(cmd, HEX);
+		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
+		  holdDisplay = false;
+		  ledsOff = false;
+		  inSettings = false;
+		  setMode(MODE_IDLE);
+		  Serial.println(F("FUNC -> Menu"));
 		}
 	  }
 		}
@@ -1737,8 +1741,15 @@ void loop() {
 		showModeOnLcd(smoothedLightValue, pirState, soundValue);
 	  }
 	} else if (lcdOn) {
-	  // Keep EQ help/value pages cycling while settings menu is open
-	  showSettingsLcd();
+	  if (currentMode == MODE_DICE) {
+		showDiceLcd();
+	  } else if (currentMode == MODE_COUNTER) {
+		showCounterLcd();
+	  } else if (currentMode == MODE_SERIAL_MSG) {
+		showSerialMsgLcd();
+	  } else if (currentMode == MODE_HELLO) {
+		showHelloLcd();
+	  }
 	}
 
   delay(150);
