@@ -142,6 +142,12 @@
     <None Include=".github\copilot-instructions.md" />
     <None Include=".gitignore" />
     <None Include="ArduinoSensorsLdrLcd.ino" />
+    <None Include="CarParkEntrySystem\GITMORE.md" />
+    <None Include="CarParkEntrySystem\MegaGateStation\MegaGateStation.ino" />
+    <None Include="CarParkEntrySystem\README.md" />
+    <None Include="CarParkEntrySystem\TODO.md" />
+    <None Include="CarParkEntrySystem\UnoQAuthority\UnoQAuthority.ino" />
+    <None Include="CarParkEntrySystem\UnoR4WiFiOps\UnoR4WiFiOps.ino" />
     <None Include="GuidedButtonMapper\GuidedButtonMapper.ino" />
     <None Include="ModeSwitching\ModeSwitching.ino" />
     <None Include="RawCodeTest\RawCodeTest.ino" />
@@ -149,10 +155,13 @@
     <None Include="RemoteButtonMapper.ino" />
     <None Include="RemoteButtonMapper\RemoteButtonMapper.ino" />
     <None Include="SDButtonLogger\SDButtonLogger.ino" />
+    <None Include="Tinkercad_Modes_1-7\Tinkercad_Modes_1-7.ino" />
+    <None Include="Tinkercad_Modes_1-7\Tinkercad_Modes_1-7_IR.ino" />
     <None Include="TODO.md" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h" />
+    <ClInclude Include="CarParkEntrySystem\ButtonMap.h" />
     <ClInclude Include="ModeSwitching\ButtonMap.h" />
   </ItemGroup>
   <ItemGroup>

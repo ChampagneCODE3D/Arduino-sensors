@@ -26,12 +26,23 @@
     <None Include="RawCodeTest\RawCodeTest.ino" />
     <None Include=".github\copilot-instructions.md" />
     <None Include="TODO.md" />
+    <None Include="CarParkEntrySystem\README.md" />
+    <None Include="CarParkEntrySystem\TODO.md" />
+    <None Include="CarParkEntrySystem\GITMORE.md" />
+    <None Include="CarParkEntrySystem\MegaGateStation\MegaGateStation.ino" />
+    <None Include="CarParkEntrySystem\UnoR4WiFiOps\UnoR4WiFiOps.ino" />
+    <None Include="CarParkEntrySystem\UnoQAuthority\UnoQAuthority.ino" />
+    <None Include="Tinkercad_Modes_1-7\Tinkercad_Modes_1-7_IR.ino" />
+    <None Include="Tinkercad_Modes_1-7\Tinkercad_Modes_1-7.ino" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ButtonMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ModeSwitching\ButtonMap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="CarParkEntrySystem\ButtonMap.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

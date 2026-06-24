@@ -24,6 +24,7 @@ Private planning document. Do not make repo public while this file exists.
 - [ ] UV sensor daylight calibration (Mode 9) — needs outdoor sunlight test; update UV_RAW_MAX after
 - [ ] Sync SettingsInput.ino with SensorModes EQ redesign (arrow-key only, defaults, guards)
 - [ ] Add 2/4 page indicator to temp mode LCD
+- [ ] Howl's Moving Arduino: add multi-board UART linking plan (Mega hub + Uno nodes via TX/RX/GND, optional RS-485 for long runs)
 
 ---
 
