@@ -1752,5 +1752,11 @@ void loop() {
 	  }
 	}
 
+  // --- SEND TEMP + LDR TO MEGA ---
+  Serial.print("TEMP=");
+  Serial.print(smoothedTempC);        // temp from A2
+  Serial.print(",LDR=");
+  Serial.println(smoothedLightValue); // LDR from A0
+
   delay(150);
 }
