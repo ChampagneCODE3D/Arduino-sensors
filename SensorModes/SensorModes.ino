@@ -73,6 +73,8 @@ int lastDisplayedLight = -1;
 int lastDisplayedMode = -1;
 int lastDisplayedPresence = -1;
 int lastMenuPage = -1;
+bool authorSplashActive = false;
+bool authorSplashDrawn = false;
 unsigned long lastIrTime = 0;
 uint8_t lastIrCode = 0xFF;
 unsigned long lastEqToggleTime = 0;
@@ -638,6 +640,23 @@ void showDiceLcd() {
 // ------------------
 
 void showIdleMenu() {
+  if (authorSplashActive) {
+	if (!authorSplashDrawn) {
+	  lcd.clear();
+	  lcd.setCursor(0, 0);
+	  lcd.print(F("Author"));
+	  lcd.setCursor(0, 1);
+	  lcd.print(F("Jordan Champagne"));
+	  authorSplashDrawn = true;
+	}
+	return;
+  }
+
+  if (authorSplashDrawn) {
+	authorSplashDrawn = false;
+	lastMenuPage = -1;
+  }
+
   int page = (millis() / 2500) % 8;
   if (page == lastMenuPage) {
 	return;
@@ -685,15 +704,15 @@ void showIdleMenu() {
 	  break;
 	case 6:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("Vol+ Manual Test"));
+	  lcd.print(F("Vol+ LED FX"));
 	  lcd.setCursor(0, 1);
 	  lcd.print(F("Vol- Serial Msg"));
 	  break;
 	case 7:
 	  lcd.setCursor(0, 0);
-	  lcd.print(F("Fwd Counter"));
+	  lcd.print(F("Fwd Hello"));
 	  lcd.setCursor(0, 1);
-	  lcd.print(F("Rev Hello"));
+	  lcd.print(F("Rev Author"));
 	  break;
   }
 }
@@ -1299,6 +1318,8 @@ void applyMode(int pirState, int lightValue, int soundValue) {
 
 void setMode(ProgramMode mode) {
   currentMode = mode;
+  authorSplashActive = false;
+  authorSplashDrawn = false;
   lastDisplayedMode = -1;
   lastDisplayedPresence = -1;
   lastDisplayedLight = -1;
@@ -1496,13 +1517,19 @@ void loop() {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
 		  ledsOff = false;
+		  authorSplashActive = false;
+		  authorSplashDrawn = false;
 		  setMode(MODE_IDLE);
+		  showIdleMenu();
 		  Serial.println(F("FUNC -> Menu"));
 		} else if (!inSettings && cmd == CMD_FUNC) {
 		  if (!lcdOn) { lcdOn = true; lcd.backlight(); }
 		  holdDisplay = false;
 		  ledsOff = false;
+		  authorSplashActive = false;
+		  authorSplashDrawn = false;
 		  setMode(MODE_IDLE);
+		  showIdleMenu();
 		  Serial.println(F("FUNC -> Menu"));
 		} else if (currentMode == MODE_COUNTER && !inSettings && cmd == CMD_UP) {
 		  counterValue++;
@@ -1571,7 +1598,7 @@ void loop() {
 			setMode(MODE_COUNTER);
 			Serial.println(F("0 -> Counter"));
 		  } else if (currentMode == MODE_DICE) {
-			// 0 is digit entry in Dice mode
+			// 0 is disabled in Dice mode
 		  }
 		} else if (cmd == CMD_POWER) {
 		  if (prevIrCode == CMD_9 && (millis() - prevIrTime) < 900) {
@@ -1596,8 +1623,16 @@ void loop() {
 		  }
 		} else if (!inSettings && cmd == CMD_FORWARD) {
 		  if (currentMode == MODE_IDLE) {
-			setMode(MODE_SERIAL_MSG);
-			Serial.println(F("FWD -> Serial Msg"));
+			if (authorSplashActive) {
+			  authorSplashActive = false;
+			  authorSplashDrawn = false;
+			  lastMenuPage = -1;
+			  showIdleMenu();
+			  Serial.println(F("FWD -> Exit Author"));
+			} else {
+			  setMode(MODE_HELLO);
+			  Serial.println(F("FWD -> Hello"));
+			}
 		  } else if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair forward: C/F -> K/C -> K/R -> R/F -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 1) % 4);
@@ -1616,8 +1651,10 @@ void loop() {
 		  }
 		} else if (!inSettings && cmd == CMD_REVERSE) {
 		  if (currentMode == MODE_IDLE) {
-			setMode(MODE_HELLO);
-			Serial.println(F("REV -> Hello"));
+			authorSplashActive = true;
+			authorSplashDrawn = false;
+			showIdleMenu();
+			Serial.println(F("REV -> Author"));
 		  } else if (currentMode == MODE_TEMPERATURE) {
 			// Cycle unit pair backward: C/F -> R/F -> K/R -> K/C -> C/F
 			tempUnitPair = (TempUnitPair)(((int)tempUnitPair + 3) % 4);
@@ -1734,7 +1771,10 @@ void loop() {
 		  holdDisplay = false;
 		  ledsOff = false;
 		  inSettings = false;
+		  authorSplashActive = false;
+		  authorSplashDrawn = false;
 		  setMode(MODE_IDLE);
+		  showIdleMenu();
 		  Serial.println(F("FUNC -> Menu"));
 		}
 	  }
