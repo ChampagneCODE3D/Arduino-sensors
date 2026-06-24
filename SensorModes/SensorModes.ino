@@ -31,6 +31,7 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 #include <IRremote.hpp>
+#include <math.h>
 #include "ButtonMap.h"
 
 // -------------------------
@@ -122,6 +123,12 @@ int lastPirStateMode3 = -1;  // For Mode 3 change detection
 int lastStreetStateMode3 = -1;  // For Mode 3 change detection
 unsigned long streetLightLastMotionTime = 0;  // For Mode 3 UI countdown (always runs)
 int lastDisplayedSound = -1;  // For Mode 8 LCD refresh
+
+// Uno -> Mega telemetry (fixed-buffer, non-blocking)
+const unsigned long TELEMETRY_INTERVAL_MS = 500UL;
+unsigned long lastTelemetryMs = 0;
+char telemetryTempBuf[12];
+char telemetryLineBuf[32];
 
 // -------------------------
 // DICE ROLLER STATE
@@ -1752,11 +1759,23 @@ void loop() {
 	  }
 	}
 
-  // --- SEND TEMP + LDR TO MEGA ---
-  Serial.print("TEMP=");
-  Serial.print(smoothedTempC);        // temp from A2
-  Serial.print(",LDR=");
-  Serial.println(smoothedLightValue); // LDR from A0
+  // --- SEND TEMP + LDR TO MEGA (non-blocking, fixed-buffer) ---
+  unsigned long nowMs = millis();
+  if ((unsigned long)(nowMs - lastTelemetryMs) >= TELEMETRY_INTERVAL_MS) {
+    lastTelemetryMs += TELEMETRY_INTERVAL_MS;
+    if ((unsigned long)(nowMs - lastTelemetryMs) >= TELEMETRY_INTERVAL_MS) {
+      lastTelemetryMs = nowMs;
+    }
+
+    float tempOut = smoothedTempC;
+    if (!isfinite(tempOut)) tempOut = 0.0f;
+
+    dtostrf(tempOut, 0, 1, telemetryTempBuf);  // exactly one decimal
+    int n = snprintf(telemetryLineBuf, sizeof(telemetryLineBuf), "TEMP=%s,LDR=%d\n", telemetryTempBuf, smoothedLightValue);
+    if (n > 0 && n < (int)sizeof(telemetryLineBuf)) {
+      Serial.write((const uint8_t*)telemetryLineBuf, (size_t)n);
+    }
+  }
 
   delay(150);
 }
